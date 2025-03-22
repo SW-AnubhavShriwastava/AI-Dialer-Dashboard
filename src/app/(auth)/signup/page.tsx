@@ -40,7 +40,10 @@ export default function SignUpPage() {
   })
 
   const { register: registerOTP, handleSubmit: handleOTPSubmit, formState: { errors: otpErrors }, reset: resetOTP } = useForm<OTPForm>({
-    resolver: zodResolver(otpSchema)
+    resolver: zodResolver(otpSchema),
+    defaultValues: {
+      otp: ''
+    }
   })
 
   const onSignupSubmit = async (data: SignUpForm) => {
@@ -69,7 +72,9 @@ export default function SignUpPage() {
 
       setSignupData(data)
       setShowOTPInput(true)
-      resetOTP() // Reset OTP form when showing it
+      resetOTP({
+        otp: ''
+      })
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Something went wrong')
     } finally {
@@ -257,7 +262,7 @@ export default function SignUpPage() {
             </Button>
           </form>
         ) : (
-          <form onSubmit={handleOTPSubmit(onOTPSubmit)} className="space-y-6">
+          <form onSubmit={handleOTPSubmit(onOTPSubmit)} className="space-y-6" key="otp-form">
             <div className="space-y-2">
               <label htmlFor="otp" className="block text-[15px] font-medium text-gray-900">
                 Verification Code
@@ -268,7 +273,8 @@ export default function SignUpPage() {
                 type="text"
                 placeholder="Enter 6-digit code"
                 maxLength={6}
-                className="text-center tracking-[0.5em] font-mono text-lg"
+                className="text-center font-normal placeholder:font-normal placeholder:tracking-normal tracking-[0.5em] font-mono text-lg"
+                autoComplete="off"
               />
               {otpErrors.otp && (
                 <p className="text-sm text-red-600 mt-1">{otpErrors.otp.message}</p>
