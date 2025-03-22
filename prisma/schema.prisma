@@ -1,0 +1,208 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Management
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  username      String    @unique
+  password      String
+  role          UserRole  @default(ADMIN)
+  status        UserStatus @default(PENDING)
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  adminSettings AdminSettings?
+  employees     Employee[]
+  campaigns     Campaign[]
+  contacts      Contact[]
+
+  @@map("users")
+}
+
+model AdminSettings {
+  id              String    @id @default(cuid())
+  adminId         String    @unique
+  admin           User      @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  planType        String
+  availableCredits Int      @default(0)
+  assignedNumber  String?
+  features        Json      @default("{}")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("admin_settings")
+}
+
+model Employee {
+  id          String    @id @default(cuid())
+  adminId     String
+  admin       User      @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  permissions Json      @default("{}")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  campaigns   CampaignEmployee[]
+
+  @@map("employees")
+}
+
+// Campaign Management
+model Campaign {
+  id          String    @id @default(cuid())
+  name        String
+  adminId     String
+  admin       User      @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  status      CampaignStatus @default(ACTIVE)
+  startDate   DateTime?
+  endDate     DateTime?
+  settings    Json      @default("{}")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  employees   CampaignEmployee[]
+  contacts    CampaignContact[]
+  callLogs    CallLog[]
+  appointments Appointment[]
+
+  @@map("campaigns")
+}
+
+model CampaignEmployee {
+  id          String    @id @default(cuid())
+  campaignId  String
+  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  employeeId  String
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  permissions Json      @default("{}")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([campaignId, employeeId])
+  @@map("campaign_employees")
+}
+
+// Contact Management
+model Contact {
+  id          String    @id @default(cuid())
+  adminId     String
+  admin       User      @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  name        String
+  phone       String
+  email       String?
+  tags        String[]  @default([])
+  customFields Json     @default("{}")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  campaigns   CampaignContact[]
+  callLogs    CallLog[]
+  appointments Appointment[]
+
+  @@map("contacts")
+}
+
+model CampaignContact {
+  id          String    @id @default(cuid())
+  campaignId  String
+  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contactId   String
+  contact     Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  status      ContactStatus @default(PENDING)
+  callAttempts Int      @default(0)
+  lastCalled  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([campaignId, contactId])
+  @@map("campaign_contacts")
+}
+
+// Call Management
+model CallLog {
+  id          String    @id @default(cuid())
+  campaignId  String
+  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contactId   String
+  contact     Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  callSid     String    @unique
+  status      String
+  duration    Int?
+  recordingUrl String?
+  transcriptId String?
+  startedAt   DateTime?
+  endedAt     DateTime?
+  createdAt   DateTime  @default(now())
+
+  // Relations
+  appointment Appointment?
+
+  @@map("call_logs")
+}
+
+model Appointment {
+  id          String    @id @default(cuid())
+  campaignId  String
+  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contactId   String
+  contact     Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  callLogId   String?   @unique
+  callLog     CallLog?  @relation(fields: [callLogId], references: [id])
+  title       String
+  description String?
+  appointmentTime DateTime
+  status      AppointmentStatus @default(SCHEDULED)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("appointments")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  EMPLOYEE
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+}
+
+enum CampaignStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum ContactStatus {
+  PENDING
+  CALLED
+  COMPLETED
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
