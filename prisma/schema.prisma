@@ -6,11 +6,13 @@
 
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas   = ["dashboard"]
 }
 
 // User Management
@@ -24,43 +26,47 @@ model User {
   status        UserStatus @default(PENDING)
   emailVerified DateTime?
   image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
   // Relations
   adminSettings AdminSettings?
   employees     Employee[]
   campaigns     Campaign[]
   contacts      Contact[]
+  employeeAccess EmployeeAccess[]
 
+  @@schema("dashboard")
   @@map("users")
 }
 
 model AdminSettings {
   id              String    @id @default(cuid())
-  adminId         String    @unique
+  adminId         String    @unique @map("admin_id")
   admin           User      @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  planType        String
-  availableCredits Int      @default(0)
-  assignedNumber  String?
+  planType        String    @map("plan_type")
+  availableCredits Int      @default(0) @map("available_credits")
+  assignedNumber  String?   @map("assigned_number")
   features        Json      @default("{}")
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
+  @@schema("dashboard")
   @@map("admin_settings")
 }
 
 model Employee {
   id          String    @id @default(cuid())
-  adminId     String
+  adminId     String    @map("admin_id")
   admin       User      @relation(fields: [adminId], references: [id], onDelete: Cascade)
   permissions Json      @default("{}")
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   // Relations
   campaigns   CampaignEmployee[]
 
+  @@schema("dashboard")
   @@map("employees")
 }
 
@@ -74,29 +80,32 @@ model Campaign {
   startDate   DateTime?
   endDate     DateTime?
   settings    Json      @default("{}")
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   // Relations
   employees   CampaignEmployee[]
   contacts    CampaignContact[]
   callLogs    CallLog[]
   appointments Appointment[]
+  employeeAccess EmployeeAccess[]
 
+  @@schema("dashboard")
   @@map("campaigns")
 }
 
 model CampaignEmployee {
   id          String    @id @default(cuid())
-  campaignId  String
+  campaignId  String    @map("campaign_id")
   campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  employeeId  String
+  employeeId  String    @map("employee_id")
   employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   permissions Json      @default("{}")
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   @@unique([campaignId, employeeId])
+  @@schema("dashboard")
   @@map("campaign_employees")
 }
 
@@ -110,70 +119,74 @@ model Contact {
   email       String?
   tags        String[]  @default([])
   customFields Json     @default("{}")
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   // Relations
   campaigns   CampaignContact[]
   callLogs    CallLog[]
   appointments Appointment[]
 
+  @@schema("dashboard")
   @@map("contacts")
 }
 
 model CampaignContact {
   id          String    @id @default(cuid())
-  campaignId  String
+  campaignId  String    @map("campaign_id")
   campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  contactId   String
+  contactId   String    @map("contact_id")
   contact     Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  status      ContactStatus @default(PENDING)
-  callAttempts Int      @default(0)
-  lastCalled  DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  status      ContactStatus @default(ACTIVE)
+  callAttempts Int      @default(0) @map("call_attempts")
+  lastCalled  DateTime? @map("last_called")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   @@unique([campaignId, contactId])
+  @@schema("dashboard")
   @@map("campaign_contacts")
 }
 
 // Call Management
 model CallLog {
   id          String    @id @default(cuid())
-  campaignId  String
+  campaignId  String    @map("campaign_id")
   campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  contactId   String
+  contactId   String    @map("contact_id")
   contact     Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  callSid     String    @unique
+  callSid     String    @unique @map("call_sid")
   status      String
   duration    Int?
-  recordingUrl String?
-  transcriptId String?
-  startedAt   DateTime?
-  endedAt     DateTime?
-  createdAt   DateTime  @default(now())
+  recordingUrl String?  @map("recording_url")
+  transcriptId String?  @map("transcript_id")
+  startedAt   DateTime? @map("started_at")
+  endedAt     DateTime? @map("ended_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
 
   // Relations
   appointment Appointment?
 
+  @@schema("dashboard")
   @@map("call_logs")
 }
 
 model Appointment {
   id          String    @id @default(cuid())
-  campaignId  String
+  campaignId  String    @map("campaign_id")
   campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  contactId   String
+  contactId   String    @map("contact_id")
   contact     Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  callLogId   String?   @unique
+  callLogId   String?   @unique @map("call_log_id")
   callLog     CallLog?  @relation(fields: [callLogId], references: [id])
   title       String
   description String?
-  appointmentTime DateTime
+  appointmentTime DateTime @map("appointment_time")
   status      AppointmentStatus @default(SCHEDULED)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
+  @@schema("dashboard")
   @@map("appointments")
 }
 
@@ -181,28 +194,55 @@ enum UserRole {
   SUPER_ADMIN
   ADMIN
   EMPLOYEE
+
+  @@schema("dashboard")
 }
 
 enum UserStatus {
-  PENDING
   ACTIVE
   INACTIVE
+  PENDING
+
+  @@schema("dashboard")
 }
 
 enum CampaignStatus {
   ACTIVE
   PAUSED
   COMPLETED
+
+  @@schema("dashboard")
 }
 
 enum ContactStatus {
-  PENDING
-  CALLED
-  COMPLETED
+  ACTIVE
+  INACTIVE
+  BLOCKED
+
+  @@schema("dashboard")
 }
 
 enum AppointmentStatus {
   SCHEDULED
   COMPLETED
   CANCELLED
+  NO_SHOW
+
+  @@schema("dashboard")
+}
+
+model EmployeeAccess {
+  id            String   @id @default(cuid())
+  employeeId    String   @map("employee_id")
+  campaignId    String   @map("campaign_id")
+  permissions   Json
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  employee      User     @relation(fields: [employeeId], references: [id])
+  campaign      Campaign @relation(fields: [campaignId], references: [id])
+
+  @@schema("dashboard")
+  @@map("employee_access")
 }
