@@ -486,6 +486,34 @@ export default function ContactsPage() {
                       </FormItem>
                     )}
                   />
+                  <FormField
+                    control={addForm.control}
+                    name="tags"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tags</FormLabel>
+                        <Select
+                          value={field.value?.join(',')}
+                          onValueChange={(value) => field.onChange(value ? value.split(',') : [])}
+                          disabled={addContactMutation.isPending}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="bg-white border-input h-10">
+                              <SelectValue placeholder="Select tags" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="bg-white border shadow-md">
+                            {tagOptions.map((tag) => (
+                              <SelectItem key={tag.value} value={tag.value} className="hover:bg-accent">
+                                {tag.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   {addContactMutation.isError && (
                     <div className="text-sm text-destructive">
                       {addContactMutation.error instanceof Error
@@ -529,12 +557,12 @@ export default function ContactsPage() {
           value={selectedTagsInput.join(',')}
           onValueChange={(value) => setSelectedTagsInput(value ? value.split(',') : [])}
         >
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-[200px] bg-white border-input h-10">
             <SelectValue placeholder="Filter by tags" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-white border shadow-md">
             {tagOptions.map((tag) => (
-              <SelectItem key={tag.value} value={tag.value}>
+              <SelectItem key={tag.value} value={tag.value} className="hover:bg-accent">
                 {tag.label}
               </SelectItem>
             ))}
@@ -734,6 +762,34 @@ export default function ContactsPage() {
                         disabled={editContactMutation.isPending}
                       />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="tags"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tags</FormLabel>
+                    <Select
+                      value={field.value?.join(',')}
+                      onValueChange={(value) => field.onChange(value ? value.split(',') : [])}
+                      disabled={editContactMutation.isPending}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="bg-white border-input h-10">
+                          <SelectValue placeholder="Select tags" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="bg-white border shadow-md">
+                        {tagOptions.map((tag) => (
+                          <SelectItem key={tag.value} value={tag.value} className="hover:bg-accent">
+                            {tag.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
