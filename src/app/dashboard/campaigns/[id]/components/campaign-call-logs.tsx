@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { Search, Loader2, Sparkles, Phone, Calendar } from 'lucide-react'
+import { Search, Loader2, Sparkles, Phone, Calendar, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -31,6 +31,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/components/ui/use-toast'
 
 interface CallLog {
@@ -51,6 +52,9 @@ interface CallLog {
   nextAction: string | null
 }
 
+type SortField = 'name' | 'status' | 'duration' | 'startTime'
+type SortOrder = 'asc' | 'desc'
+
 interface CampaignCallLogsProps {
   campaignId: string
 }
@@ -59,6 +63,8 @@ export function CampaignCallLogs({ campaignId }: CampaignCallLogsProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [selectedCallLog, setSelectedCallLog] = useState<CallLog | null>(null)
+  const [sortField, setSortField] = useState<SortField>('startTime')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
@@ -97,14 +103,50 @@ export function CampaignCallLogs({ campaignId }: CampaignCallLogsProps) {
     },
   })
 
+  // Sort function
+  const sortCallLogs = (a: CallLog, b: CallLog) => {
+    switch (sortField) {
+      case 'name':
+        return sortOrder === 'asc'
+          ? a.contact.name.localeCompare(b.contact.name)
+          : b.contact.name.localeCompare(a.contact.name)
+      case 'status':
+        return sortOrder === 'asc'
+          ? a.status.localeCompare(b.status)
+          : b.status.localeCompare(a.status)
+      case 'duration':
+        return sortOrder === 'asc'
+          ? a.duration - b.duration
+          : b.duration - a.duration
+      case 'startTime':
+        return sortOrder === 'asc'
+          ? new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+          : new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+      default:
+        return 0
+    }
+  }
+
+  // Handle sort click
+  const handleSort = (field: SortField) => {
+    if (field === sortField) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortOrder('asc')
+    }
+  }
+
   // Filter and sort call logs
-  const filteredCallLogs = callLogs?.filter((log) => {
-    const matchesSearch =
-      log.contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.contact.phone.includes(searchQuery)
-    const matchesStatus = statusFilter === 'all' || log.status === statusFilter
-    return matchesSearch && matchesStatus
-  })
+  const filteredCallLogs = callLogs
+    ?.filter((log) => {
+      const matchesSearch =
+        log.contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        log.contact.phone.includes(searchQuery)
+      const matchesStatus = statusFilter === 'all' || log.status === statusFilter
+      return matchesSearch && matchesStatus
+    })
+    .sort(sortCallLogs)
 
   if (isLoading) {
     return (
@@ -145,11 +187,55 @@ export function CampaignCallLogs({ campaignId }: CampaignCallLogsProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Contact</TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort('name')}
+                  className="flex items-center gap-2"
+                >
+                  Contact
+                  {sortField === 'name' && (
+                    <ArrowUpDown className="h-4 w-4" />
+                  )}
+                </Button>
+              </TableHead>
               <TableHead>Phone</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Duration</TableHead>
-              <TableHead>Date & Time</TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort('status')}
+                  className="flex items-center gap-2"
+                >
+                  Status
+                  {sortField === 'status' && (
+                    <ArrowUpDown className="h-4 w-4" />
+                  )}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort('duration')}
+                  className="flex items-center gap-2"
+                >
+                  Duration
+                  {sortField === 'duration' && (
+                    <ArrowUpDown className="h-4 w-4" />
+                  )}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort('startTime')}
+                  className="flex items-center gap-2"
+                >
+                  Date & Time
+                  {sortField === 'startTime' && (
+                    <ArrowUpDown className="h-4 w-4" />
+                  )}
+                </Button>
+              </TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -188,120 +274,138 @@ export function CampaignCallLogs({ campaignId }: CampaignCallLogsProps) {
                         View Details
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
+                    <DialogContent className="max-w-4xl h-[80vh]">
                       <DialogHeader>
                         <DialogTitle>Call Details</DialogTitle>
                       </DialogHeader>
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label>Contact</Label>
-                            <p className="text-sm">{log.contact.name}</p>
+                      <ScrollArea className="h-full pr-4">
+                        <div className="space-y-6">
+                          {/* Call Info */}
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label>Contact</Label>
+                              <p className="text-sm">{log.contact.name}</p>
+                            </div>
+                            <div>
+                              <Label>Phone</Label>
+                              <p className="text-sm">{log.contact.phone}</p>
+                            </div>
+                            <div>
+                              <Label>Status</Label>
+                              <Badge
+                                variant={
+                                  log.status === 'COMPLETED'
+                                    ? 'default'
+                                    : log.status === 'MISSED'
+                                    ? 'secondary'
+                                    : 'destructive'
+                                }
+                              >
+                                {log.status}
+                              </Badge>
+                            </div>
+                            <div>
+                              <Label>Duration</Label>
+                              <p className="text-sm">
+                                {log.duration
+                                  ? `${Math.round(log.duration / 60)}m ${log.duration % 60}s`
+                                  : '-'}
+                              </p>
+                            </div>
+                            <div>
+                              <Label>Start Time</Label>
+                              <p className="text-sm">
+                                {format(new Date(log.startTime), 'PPP p')}
+                              </p>
+                            </div>
+                            <div>
+                              <Label>End Time</Label>
+                              <p className="text-sm">
+                                {log.endTime
+                                  ? format(new Date(log.endTime), 'PPP p')
+                                  : '-'}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <Label>Phone</Label>
-                            <p className="text-sm">{log.contact.phone}</p>
-                          </div>
-                          <div>
-                            <Label>Status</Label>
-                            <Badge
-                              variant={
-                                log.status === 'COMPLETED'
-                                  ? 'default'
-                                  : log.status === 'MISSED'
-                                  ? 'secondary'
-                                  : 'destructive'
-                              }
-                            >
-                              {log.status}
-                            </Badge>
-                          </div>
-                          <div>
-                            <Label>Duration</Label>
-                            <p className="text-sm">
-                              {log.duration
-                                ? `${Math.round(log.duration / 60)}m ${log.duration % 60}s`
-                                : '-'}
-                            </p>
-                          </div>
-                          <div>
-                            <Label>Start Time</Label>
-                            <p className="text-sm">
-                              {format(new Date(log.startTime), 'PPP p')}
-                            </p>
-                          </div>
-                          <div>
-                            <Label>End Time</Label>
-                            <p className="text-sm">
-                              {log.endTime
-                                ? format(new Date(log.endTime), 'PPP p')
-                                : '-'}
-                            </p>
-                          </div>
+
+                          {/* Recording */}
+                          {log.recordingUrl && (
+                            <div>
+                              <Label>Recording</Label>
+                              <audio
+                                controls
+                                className="mt-2 w-full"
+                                src={log.recordingUrl}
+                              />
+                            </div>
+                          )}
+
+                          {/* Transcript and Summary */}
+                          <Tabs defaultValue="transcript" className="w-full">
+                            <TabsList>
+                              <TabsTrigger value="transcript">Transcript</TabsTrigger>
+                              <TabsTrigger value="summary">AI Summary</TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="transcript">
+                              {log.transcript ? (
+                                <div className="rounded-lg border p-4 mt-2 bg-muted/50">
+                                  <pre className="whitespace-pre-wrap font-mono text-sm">
+                                    {log.transcript}
+                                  </pre>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-muted-foreground">
+                                  No transcript available
+                                </p>
+                              )}
+                            </TabsContent>
+                            <TabsContent value="summary">
+                              {log.summary ? (
+                                <div className="space-y-4">
+                                  <div>
+                                    <Label>Summary</Label>
+                                    <p className="text-sm mt-1">{log.summary}</p>
+                                  </div>
+                                  {log.sentiment && (
+                                    <div>
+                                      <Label>Sentiment</Label>
+                                      <Badge
+                                        variant={
+                                          log.sentiment === 'POSITIVE'
+                                            ? 'default'
+                                            : log.sentiment === 'NEUTRAL'
+                                            ? 'secondary'
+                                            : 'destructive'
+                                        }
+                                        className="mt-1"
+                                      >
+                                        {log.sentiment}
+                                      </Badge>
+                                    </div>
+                                  )}
+                                  {log.nextAction && (
+                                    <div>
+                                      <Label>Next Action</Label>
+                                      <p className="text-sm mt-1">{log.nextAction}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="text-center py-4">
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => generateSummaryMutation.mutate(log.id)}
+                                    disabled={generateSummaryMutation.isPending}
+                                  >
+                                    <Sparkles className="mr-2 h-4 w-4" />
+                                    Generate AI Summary
+                                  </Button>
+                                </div>
+                              )}
+                            </TabsContent>
+                          </Tabs>
                         </div>
-
-                        {log.recordingUrl && (
-                          <div>
-                            <Label>Recording</Label>
-                            <audio
-                              controls
-                              className="mt-2 w-full"
-                              src={log.recordingUrl}
-                            />
-                          </div>
-                        )}
-
-                        {log.transcript && (
-                          <div>
-                            <Label>Transcript</Label>
-                            <ScrollArea className="h-[200px] rounded-md border p-4">
-                              <p className="text-sm">{log.transcript}</p>
-                            </ScrollArea>
-                          </div>
-                        )}
-
-                        {log.summary ? (
-                          <div>
-                            <Label>AI Summary</Label>
-                            <ScrollArea className="h-[100px] rounded-md border p-4">
-                              <p className="text-sm">{log.summary}</p>
-                            </ScrollArea>
-                          </div>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            onClick={() => generateSummaryMutation.mutate(log.id)}
-                            disabled={generateSummaryMutation.isPending}
-                          >
-                            <Sparkles className="mr-2 h-4 w-4" />
-                            Generate AI Summary
-                          </Button>
-                        )}
-
-                        {log.sentiment && (
-                          <div>
-                            <Label>Sentiment</Label>
-                            <Badge
-                              variant={
-                                log.sentiment === 'POSITIVE'
-                                  ? 'default'
-                                  : log.sentiment === 'NEUTRAL'
-                                  ? 'secondary'
-                                  : 'destructive'
-                              }
-                            >
-                              {log.sentiment}
-                            </Badge>
-                          </div>
-                        )}
-
-                        {log.nextAction && (
-                          <div>
-                            <Label>Next Action</Label>
-                            <p className="text-sm">{log.nextAction}</p>
-                          </div>
-                        )}
-                      </div>
+                      </ScrollArea>
                     </DialogContent>
                   </Dialog>
                 </TableCell>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Upload, Loader2 } from 'lucide-react'
+import { Plus, Upload, Download, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import {
@@ -19,6 +19,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog'
 import {
   Select,
@@ -30,6 +32,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { ContactStatus } from '@prisma/client'
 import { useToast } from '@/components/ui/use-toast'
 
@@ -48,6 +52,14 @@ interface Contact {
   }[]
 }
 
+interface ImportProgress {
+  total: number
+  processed: number
+  successful: number
+  failed: number
+  errors: string[]
+}
+
 interface CampaignContactsProps {
   campaignId: string
 }
@@ -56,6 +68,7 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
   const [isAddContactDialogOpen, setIsAddContactDialogOpen] = useState(false)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const [isSelectContactDialogOpen, setIsSelectContactDialogOpen] = useState(false)
+  const [importProgress, setImportProgress] = useState<ImportProgress | null>(null)
   const [newContact, setNewContact] = useState({
     name: '',
     phone: '',
@@ -119,25 +132,83 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
     mutationFn: async (file: File) => {
       const formData = new FormData()
       formData.append('file', file)
+
       const response = await fetch(`/api/campaigns/${campaignId}/contacts/import`, {
         method: 'POST',
         body: formData,
       })
-      if (!response.ok) throw new Error('Failed to import contacts')
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Failed to import contacts')
+      }
+
+      // Start polling for import progress
+      const progressInterval = setInterval(async () => {
+        const progressResponse = await fetch(
+          `/api/campaigns/${campaignId}/contacts/import/progress`
+        )
+        if (progressResponse.ok) {
+          const progress = await progressResponse.json()
+          setImportProgress(progress)
+          if (progress.processed === progress.total) {
+            clearInterval(progressInterval)
+            // Reset progress after 5 seconds
+            setTimeout(() => setImportProgress(null), 5000)
+          }
+        }
+      }, 1000)
+
       return response.json()
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaign-contacts', campaignId] })
-      setIsImportDialogOpen(false)
       toast({
         title: 'Success',
-        description: 'Contacts imported successfully',
+        description: 'Import started successfully',
+      })
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to import contacts',
+        variant: 'destructive',
+      })
+      setImportProgress(null)
+    },
+  })
+
+  // Export contacts mutation
+  const exportContactsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(
+        `/api/campaigns/${campaignId}/contacts/export`,
+        {
+          method: 'GET',
+        }
+      )
+      if (!response.ok) throw new Error('Failed to export contacts')
+      
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `campaign-contacts-${format(new Date(), 'yyyy-MM-dd')}.csv`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Success',
+        description: 'Contacts exported successfully',
       })
     },
     onError: () => {
       toast({
         title: 'Error',
-        description: 'Failed to import contacts',
+        description: 'Failed to export contacts',
         variant: 'destructive',
       })
     },
@@ -187,6 +258,13 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
   const handleImportContacts = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      setImportProgress({
+        total: 0,
+        processed: 0,
+        successful: 0,
+        failed: 0,
+        errors: [],
+      })
       importContactsMutation.mutate(file)
     }
   }
@@ -212,6 +290,9 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Import Contacts</DialogTitle>
+              <DialogDescription>
+                Upload a CSV or Excel file containing contacts. The file should have the following columns: name, phone, email (optional).
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -221,12 +302,65 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
                   type="file"
                   accept=".xlsx,.xls,.csv"
                   onChange={handleImportContacts}
-                  disabled={importContactsMutation.isPending}
+                  disabled={importContactsMutation.isPending || !!importProgress}
                 />
               </div>
+
+              {importProgress && (
+                <div className="space-y-4">
+                  <Progress
+                    value={
+                      importProgress.total
+                        ? (importProgress.processed / importProgress.total) * 100
+                        : 0
+                    }
+                  />
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>
+                      Processed: {importProgress.processed}/{importProgress.total}
+                    </span>
+                    <span>
+                      Success: {importProgress.successful} | Failed:{' '}
+                      {importProgress.failed}
+                    </span>
+                  </div>
+                  {importProgress.errors.length > 0 && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Import Errors</AlertTitle>
+                      <AlertDescription>
+                        <ul className="list-disc pl-4">
+                          {importProgress.errors.map((error, index) => (
+                            <li key={index}>{error}</li>
+                          ))}
+                        </ul>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+              )}
+
+              {!importProgress && importContactsMutation.isSuccess && (
+                <Alert>
+                  <CheckCircle2 className="h-4 w-4" />
+                  <AlertTitle>Import Complete</AlertTitle>
+                  <AlertDescription>
+                    All contacts have been imported successfully.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
           </DialogContent>
         </Dialog>
+
+        <Button
+          variant="outline"
+          onClick={() => exportContactsMutation.mutate()}
+          disabled={exportContactsMutation.isPending}
+        >
+          <Download className="mr-2 h-4 w-4" />
+          Export Contacts
+        </Button>
 
         <Dialog open={isSelectContactDialogOpen} onOpenChange={setIsSelectContactDialogOpen}>
           <DialogTrigger asChild>
@@ -260,8 +394,12 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
               </div>
               <Button
                 onClick={() => addExistingContactMutation.mutate(selectedContactId)}
+                className="w-full"
                 disabled={!selectedContactId || addExistingContactMutation.isPending}
               >
+                {addExistingContactMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
                 Add Contact
               </Button>
             </div>
@@ -301,7 +439,7 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">Email (Optional)</Label>
                 <Input
                   id="email"
                   type="email"
@@ -347,22 +485,22 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
                 <TableCell>
                   <Badge
                     variant={
-                      contact.campaigns[0].status === ContactStatus.PENDING
+                      contact.status === ContactStatus.ACTIVE
                         ? 'default'
-                        : contact.campaigns[0].status === ContactStatus.CALLED
+                        : contact.status === ContactStatus.INACTIVE
                         ? 'secondary'
                         : 'destructive'
                     }
                   >
-                    {contact.campaigns[0].status}
+                    {contact.status}
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  {contact.campaigns[0].lastCalled
-                    ? format(new Date(contact.campaigns[0].lastCalled), 'PPP p')
+                  {contact.lastCalled
+                    ? format(new Date(contact.lastCalled), 'PPp')
                     : '-'}
                 </TableCell>
-                <TableCell>{contact.campaigns[0].callAttempts}</TableCell>
+                <TableCell>{contact.callAttempts}</TableCell>
               </TableRow>
             ))}
           </TableBody>

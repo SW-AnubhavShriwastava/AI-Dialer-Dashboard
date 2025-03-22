@@ -74,6 +74,7 @@ model Employee {
 model Campaign {
   id          String    @id @default(cuid())
   name        String
+  description String?
   adminId     String
   admin       User      @relation(fields: [adminId], references: [id], onDelete: Cascade)
   status      CampaignStatus @default(ACTIVE)
