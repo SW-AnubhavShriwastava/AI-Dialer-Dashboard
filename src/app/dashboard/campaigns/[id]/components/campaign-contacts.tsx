@@ -60,6 +60,16 @@ interface ImportProgress {
   errors: string[]
 }
 
+interface ContactsResponse {
+  contacts: Contact[]
+  pagination: {
+    total: number
+    page: number
+    limit: number
+    totalPages: number
+  }
+}
+
 interface CampaignContactsProps {
   campaignId: string
 }
@@ -89,7 +99,7 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
   })
 
   // Fetch all contacts for selection
-  const { data: allContacts } = useQuery<Contact[]>({
+  const { data: contactsResponse } = useQuery<ContactsResponse>({
     queryKey: ['contacts'],
     queryFn: async () => {
       const response = await fetch('/api/contacts')
@@ -97,6 +107,8 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
       return response.json()
     },
   })
+
+  const allContacts = contactsResponse?.contacts || []
 
   // Add contact mutation
   const addContactMutation = useMutation({

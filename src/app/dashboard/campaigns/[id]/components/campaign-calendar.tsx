@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { format, startOfMonth, endOfMonth } from 'date-fns'
+import { format, startOfMonth, endOfMonth, isValid, parseISO } from 'date-fns'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -25,13 +25,13 @@ interface Appointment {
   id: string
   title: string
   description: string
-  start: string
-  end: string
+  appointmentTime: string
+  endTime: string | null
   status: AppointmentStatus
   contact: {
     name: string
     phone: string
-    email: string
+    email: string | null
   }
 }
 
@@ -71,17 +71,42 @@ export function CampaignCalendar({ campaignId }: CampaignCalendarProps) {
         return '#22c55e'
       case AppointmentStatus.CANCELLED:
         return '#ef4444'
+      case AppointmentStatus.NO_SHOW:
+        return '#f59e0b'
       default:
         return '#3b82f6'
+    }
+  }
+
+  const formatDate = (dateString: string | null | undefined): string => {
+    if (!dateString) return '-'
+    try {
+      const date = parseISO(dateString)
+      if (!isValid(date)) return '-'
+      return format(date, 'PPP p')
+    } catch {
+      return '-'
+    }
+  }
+
+  const formatTime = (dateString: string | null | undefined): string => {
+    if (!dateString) return '-'
+    try {
+      const date = parseISO(dateString)
+      if (!isValid(date)) return '-'
+      return format(date, 'p')
+    } catch {
+      return '-'
     }
   }
 
   const events = data?.data?.map((appointment: Appointment) => ({
     id: appointment.id,
     title: appointment.title,
-    start: appointment.start,
-    end: appointment.end,
-    backgroundColor: getStatusColor(appointment.status)
+    start: appointment.appointmentTime,
+    end: appointment.endTime || undefined,
+    backgroundColor: getStatusColor(appointment.status),
+    allDay: false
   })) || []
 
   if (isLoading) {
@@ -110,6 +135,7 @@ export function CampaignCalendar({ campaignId }: CampaignCalendarProps) {
                 <SelectItem value={AppointmentStatus.SCHEDULED}>Scheduled</SelectItem>
                 <SelectItem value={AppointmentStatus.COMPLETED}>Completed</SelectItem>
                 <SelectItem value={AppointmentStatus.CANCELLED}>Cancelled</SelectItem>
+                <SelectItem value={AppointmentStatus.NO_SHOW}>No Show</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -133,6 +159,8 @@ export function CampaignCalendar({ campaignId }: CampaignCalendarProps) {
                 setCurrentDate(dateInfo.start)
               }}
               height="100%"
+              slotMinTime="06:00:00"
+              slotMaxTime="22:00:00"
             />
           </div>
         </CardContent>
@@ -147,7 +175,8 @@ export function CampaignCalendar({ campaignId }: CampaignCalendarProps) {
             <div className="flex items-center gap-2">
               <Badge variant={
                 selectedAppointment?.status === AppointmentStatus.COMPLETED ? 'default' : 
-                selectedAppointment?.status === AppointmentStatus.CANCELLED ? 'destructive' : 'outline'
+                selectedAppointment?.status === AppointmentStatus.CANCELLED ? 'destructive' :
+                selectedAppointment?.status === AppointmentStatus.NO_SHOW ? 'secondary' : 'outline'
               }>
                 {selectedAppointment?.status}
               </Badge>
@@ -156,18 +185,18 @@ export function CampaignCalendar({ campaignId }: CampaignCalendarProps) {
               <h4 className="font-medium">Contact Information</h4>
               <p className="text-sm text-muted-foreground">{selectedAppointment?.contact.name}</p>
               <p className="text-sm text-muted-foreground">{selectedAppointment?.contact.phone}</p>
-              <p className="text-sm text-muted-foreground">{selectedAppointment?.contact.email}</p>
+              <p className="text-sm text-muted-foreground">{selectedAppointment?.contact.email || '-'}</p>
             </div>
             <div>
               <h4 className="font-medium">Time</h4>
               <p className="text-sm text-muted-foreground">
-                {format(new Date(selectedAppointment?.start || ''), 'PPP p')} - 
-                {format(new Date(selectedAppointment?.end || ''), ' p')}
+                {formatDate(selectedAppointment?.appointmentTime)}
+                {selectedAppointment?.endTime ? ` - ${formatTime(selectedAppointment.endTime)}` : ''}
               </p>
             </div>
             <div>
               <h4 className="font-medium">Description</h4>
-              <p className="text-sm text-muted-foreground">{selectedAppointment?.description}</p>
+              <p className="text-sm text-muted-foreground">{selectedAppointment?.description || '-'}</p>
             </div>
           </div>
         </DialogContent>

@@ -17,7 +17,7 @@ const updateCampaignSchema = z.object({
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -25,9 +25,11 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { id } = context.params
+
     const campaign = await prisma.campaign.findFirst({
       where: {
-        id: params.id,
+        id,
         adminId: session.user.id,
       },
       include: {
@@ -68,7 +70,7 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -76,13 +78,14 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { id } = context.params
     const body = await request.json()
     const validatedData = updateCampaignSchema.parse(body)
 
     // Verify campaign belongs to the admin
     const existingCampaign = await prisma.campaign.findFirst({
       where: {
-        id: params.id,
+        id,
         adminId: session.user.id,
       },
     })
@@ -96,7 +99,7 @@ export async function PUT(
 
     const campaign = await prisma.campaign.update({
       where: {
-        id: params.id,
+        id,
       },
       data: validatedData,
       include: {
@@ -128,7 +131,7 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -136,10 +139,12 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { id } = context.params
+
     // Verify campaign belongs to the admin
     const existingCampaign = await prisma.campaign.findFirst({
       where: {
-        id: params.id,
+        id,
         adminId: session.user.id,
       },
     })
@@ -153,7 +158,7 @@ export async function DELETE(
 
     await prisma.campaign.delete({
       where: {
-        id: params.id,
+        id,
       },
     })
 
