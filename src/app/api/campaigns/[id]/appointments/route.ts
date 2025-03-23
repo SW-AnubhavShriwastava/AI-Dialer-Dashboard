@@ -4,15 +4,18 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { AppointmentStatus } from '@prisma/client'
 
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+type RouteContext = {
+  params: Promise<{ id: string }>
+}
+
+export async function GET(request: Request, context: RouteContext) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
       return new NextResponse('Unauthorized', { status: 401 })
     }
+
+    const { id } = await context.params
 
     // Get query parameters
     const { searchParams } = new URL(request.url)
@@ -25,7 +28,7 @@ export async function GET(
 
     // Build where clause
     const where = {
-      campaignId: params.id,
+      campaignId: id,
       campaign: {
         OR: [
           { adminId: session.user.id },

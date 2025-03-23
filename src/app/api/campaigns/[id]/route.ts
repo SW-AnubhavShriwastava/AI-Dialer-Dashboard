@@ -15,17 +15,18 @@ const updateCampaignSchema = z.object({
   settings: z.record(z.any()).optional(),
 })
 
-export async function GET(
-  request: Request,
-  context: { params: { id: string } }
-) {
+type RouteContext = {
+  params: Promise<{ id: string }>
+}
+
+export async function GET(request: Request, context: RouteContext) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = context.params
+    const { id } = await context.params
 
     const campaign = await prisma.campaign.findFirst({
       where: {
@@ -68,17 +69,14 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: Request,
-  context: { params: { id: string } }
-) {
+export async function PUT(request: Request, context: RouteContext) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = context.params
+    const { id } = await context.params
     const body = await request.json()
     const validatedData = updateCampaignSchema.parse(body)
 
@@ -129,17 +127,14 @@ export async function PUT(
   }
 }
 
-export async function DELETE(
-  request: Request,
-  context: { params: { id: string } }
-) {
+export async function DELETE(request: Request, context: RouteContext) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = context.params
+    const { id } = await context.params
 
     // Verify campaign belongs to the admin
     const existingCampaign = await prisma.campaign.findFirst({

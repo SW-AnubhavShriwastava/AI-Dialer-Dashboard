@@ -14,21 +14,24 @@ const createContactSchema = z.object({
   customFields: z.record(z.any()).optional(),
 })
 
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+type RouteContext = {
+  params: Promise<{ id: string }>
+}
+
+export async function GET(request: Request, context: RouteContext) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { id } = await context.params
+
     const contacts = await prisma.contact.findMany({
       where: {
         campaigns: {
           some: {
-            campaignId: params.id,
+            campaignId: id,
           },
         },
         adminId: session.user.id,
@@ -36,7 +39,7 @@ export async function GET(
       include: {
         campaigns: {
           where: {
-            campaignId: params.id,
+            campaignId: id,
           },
           select: {
             status: true,
@@ -60,16 +63,14 @@ export async function GET(
   }
 }
 
-export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: Request, context: RouteContext) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { id } = await context.params
     const body = await request.json()
     const validatedData = createContactSchema.parse(body)
 
@@ -90,7 +91,7 @@ export async function POST(
         data: {
           campaigns: {
             create: {
-              campaignId: params.id,
+              campaignId: id,
               status: ContactStatus.ACTIVE,
             },
           },
@@ -98,7 +99,7 @@ export async function POST(
         include: {
           campaigns: {
             where: {
-              campaignId: params.id,
+              campaignId: id,
             },
             select: {
               status: true,
@@ -119,7 +120,7 @@ export async function POST(
         adminId: session.user.id,
         campaigns: {
           create: {
-            campaignId: params.id,
+            campaignId: id,
             status: ContactStatus.ACTIVE,
           },
         },
@@ -127,7 +128,7 @@ export async function POST(
       include: {
         campaigns: {
           where: {
-            campaignId: params.id,
+            campaignId: id,
           },
           select: {
             status: true,

@@ -11,20 +11,21 @@ interface CampaignWithRelations extends Campaign {
   appointments: (Appointment & { contact: Contact })[]
 }
 
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+type RouteParams = { params: Promise<{ id: string }> }
+
+export async function GET(request: Request, context: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { id } = await context.params
+
     // Get campaign and verify ownership
     const campaign = await prisma.campaign.findFirst({
       where: {
-        id: params.id,
+        id,
         adminId: session.user.id,
       },
       include: {
