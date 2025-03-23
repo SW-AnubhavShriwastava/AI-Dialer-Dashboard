@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Upload, Download, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Plus, Upload, Download, Loader2, AlertCircle, CheckCircle2, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,6 +37,17 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { ContactStatus } from '@prisma/client'
 import { useToast } from '@/components/ui/use-toast'
 import { UserIcon } from 'lucide-react'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Check } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Search } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 interface Contact {
   id: string
@@ -93,13 +104,14 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
   const [isAddContactDialogOpen, setIsAddContactDialogOpen] = useState(false)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const [isSelectContactDialogOpen, setIsSelectContactDialogOpen] = useState(false)
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([])
+  const [searchTerm, setSearchTerm] = useState('')
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null)
   const [newContact, setNewContact] = useState({
     name: '',
     phone: '',
     email: '',
   })
-  const [selectedContactId, setSelectedContactId] = useState<string>('')
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
@@ -149,6 +161,35 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
       toast({
         title: 'Error',
         description: 'Failed to add contact',
+        variant: 'destructive',
+      })
+    },
+  })
+
+  // Edit contact mutation
+  const editContactMutation = useMutation({
+    mutationFn: async (contact: typeof newContact & { id: string }) => {
+      const response = await fetch(`/api/contacts/${contact.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(contact),
+      })
+      if (!response.ok) throw new Error('Failed to edit contact')
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaign-contacts', campaignId] })
+      setIsAddContactDialogOpen(false)
+      setNewContact({ name: '', phone: '', email: '' })
+      toast({
+        title: 'Success',
+        description: 'Contact updated successfully',
+      })
+    },
+    onError: () => {
+      toast({
+        title: 'Error',
+        description: 'Failed to update contact',
         variant: 'destructive',
       })
     },
@@ -241,36 +282,68 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
     },
   })
 
-  // Add existing contact mutation
-  const addExistingContactMutation = useMutation({
-    mutationFn: async (contactId: string) => {
+  // Add existing contacts mutation
+  const addExistingContactsMutation = useMutation({
+    mutationFn: async (contactIds: string[]) => {
       const response = await fetch(`/api/campaigns/${campaignId}/contacts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contactId }),
+        body: JSON.stringify({ contactIds }),
       })
-      if (!response.ok) throw new Error('Failed to add contact')
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Failed to add contacts')
+      }
       return response.json()
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['campaign-contacts', campaignId] })
       setIsSelectContactDialogOpen(false)
-      setSelectedContactId('')
+      setSelectedContactIds([])
+      
+      // Show summary toast
+      const added = data.results.filter((r: any) => r.status === 'added').length
+      const skipped = data.results.filter((r: any) => r.status === 'skipped').length
       toast({
-        title: 'Success',
-        description: 'Contact added successfully',
+        title: 'Contacts Added',
+        description: `Successfully added ${added} contact${added !== 1 ? 's' : ''}${skipped ? `, ${skipped} already in campaign` : ''}`,
       })
     },
-    onError: () => {
+    onError: (error: Error) => {
       toast({
         title: 'Error',
-        description: 'Failed to add contact',
+        description: error.message || 'Failed to add contacts',
         variant: 'destructive',
       })
     },
   })
 
-  const handleAddContact = () => {
+  // Delete contact mutation
+  const deleteContactMutation = useMutation({
+    mutationFn: async (contactId: string) => {
+      const response = await fetch(`/api/campaigns/${campaignId}/contacts/${contactId}`, {
+        method: 'DELETE',
+      })
+      if (!response.ok) throw new Error('Failed to delete contact')
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaign-contacts', campaignId] })
+      toast({
+        title: 'Success',
+        description: 'Contact deleted successfully',
+      })
+    },
+    onError: () => {
+      toast({
+        title: 'Error',
+        description: 'Failed to delete contact',
+        variant: 'destructive',
+      })
+    },
+  })
+
+  const handleAddOrEditContact = () => {
     if (!newContact.name.trim() || !newContact.phone.trim()) {
       toast({
         title: 'Error',
@@ -279,7 +352,12 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
       })
       return
     }
-    addContactMutation.mutate(newContact)
+    
+    if ('id' in newContact) {
+      editContactMutation.mutate(newContact as typeof newContact & { id: string })
+    } else {
+      addContactMutation.mutate(newContact)
+    }
   }
 
   const handleImportContacts = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -295,6 +373,15 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
       importContactsMutation.mutate(file)
     }
   }
+
+  const filteredContacts = allContacts?.filter(contact => {
+    if (!searchTerm) return true
+    return (
+      contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contact.phone.includes(searchTerm) ||
+      contact.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  })
 
   if (isLoading) {
     return (
@@ -321,7 +408,10 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
             Select Contact
           </Button>
         </div>
-        <Button onClick={() => setIsAddContactDialogOpen(true)}>
+        <Button onClick={() => {
+          setNewContact({ name: '', phone: '', email: '' })
+          setIsAddContactDialogOpen(true)
+        }}>
           <Plus className="mr-2 h-4 w-4" />
           Add Contact
         </Button>
@@ -340,6 +430,7 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
                 <TableHead>Status</TableHead>
                 <TableHead>Last Called</TableHead>
                 <TableHead>Call Attempts</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -367,6 +458,43 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
                       : '-'}
                   </TableCell>
                   <TableCell>{contact.callAttempts}</TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                          <span className="sr-only">Open menu</span>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setNewContact({
+                              id: contact.id,
+                              name: contact.name,
+                              phone: contact.phone,
+                              email: contact.email || '',
+                            } as any)
+                            setIsAddContactDialogOpen(true)
+                          }}
+                        >
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => {
+                            if (confirm('Are you sure you want to remove this contact from the campaign?')) {
+                              deleteContactMutation.mutate(contact.id)
+                            }
+                          }}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -448,59 +576,90 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
       </Dialog>
 
       <Dialog open={isSelectContactDialogOpen} onOpenChange={setIsSelectContactDialogOpen}>
-        <DialogTrigger asChild>
-          <Button variant="outline">
-            <Plus className="mr-2 h-4 w-4" />
-            Select Contact
-          </Button>
-        </DialogTrigger>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>Select Contact</DialogTitle>
+            <DialogTitle>Select Contacts</DialogTitle>
+            <DialogDescription>
+              Select one or more contacts to add to the campaign
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Contact</Label>
-              <Select
-                value={selectedContactId}
-                onValueChange={setSelectedContactId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a contact" />
-                </SelectTrigger>
-                <SelectContent>
-                  {allContacts?.map((contact) => (
-                    <SelectItem key={contact.id} value={contact.id}>
-                      {contact.name} ({contact.phone})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          
+          <div className="relative">
+            <div className="flex items-center border rounded-md px-3 mb-4">
+              <Search className="h-4 w-4 text-muted-foreground mr-2" />
+              <input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search contacts..."
+                className="flex h-10 w-full bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              />
             </div>
+
+            <ScrollArea className="h-[300px] rounded-md border">
+              <div className="p-4">
+                {filteredContacts?.length === 0 ? (
+                  <div className="flex h-[200px] items-center justify-center">
+                    <p className="text-sm text-muted-foreground">No contacts found.</p>
+                  </div>
+                ) : (
+                  filteredContacts?.map((contact) => (
+                    <div
+                      key={contact.id}
+                      onClick={() => {
+                        setSelectedContactIds(prev => {
+                          if (prev.includes(contact.id)) {
+                            return prev.filter(id => id !== contact.id)
+                          }
+                          return [...prev, contact.id]
+                        })
+                      }}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm cursor-pointer hover:bg-accent",
+                        selectedContactIds.includes(contact.id) && "bg-accent"
+                      )}
+                    >
+                      <div className={cn(
+                        "flex h-4 w-4 items-center justify-center rounded-sm border",
+                        selectedContactIds.includes(contact.id) 
+                          ? "border-primary bg-primary text-primary-foreground" 
+                          : "border-input"
+                      )}>
+                        {selectedContactIds.includes(contact.id) && (
+                          <Check className="h-3 w-3" />
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <p className="text-sm font-medium leading-none">{contact.name}</p>
+                        <p className="text-sm text-muted-foreground">{contact.phone}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+
+          <div className="flex justify-between items-center mt-4">
+            <p className="text-sm text-muted-foreground">
+              {selectedContactIds.length} contact{selectedContactIds.length !== 1 ? 's' : ''} selected
+            </p>
             <Button
-              onClick={() => addExistingContactMutation.mutate(selectedContactId)}
-              className="w-full"
-              disabled={!selectedContactId || addExistingContactMutation.isPending}
+              onClick={() => addExistingContactsMutation.mutate(selectedContactIds)}
+              disabled={!selectedContactIds.length || addExistingContactsMutation.isPending}
             >
-              {addExistingContactMutation.isPending && (
+              {addExistingContactsMutation.isPending && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
-              Add Contact
+              Add Selected Contacts
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
       <Dialog open={isAddContactDialogOpen} onOpenChange={setIsAddContactDialogOpen}>
-        <DialogTrigger asChild>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Contact
-          </Button>
-        </DialogTrigger>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add New Contact</DialogTitle>
+            <DialogTitle>{'id' in newContact ? 'Edit Contact' : 'Add New Contact'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -535,14 +694,14 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
               />
             </div>
             <Button
-              onClick={handleAddContact}
+              onClick={handleAddOrEditContact}
               className="w-full"
-              disabled={addContactMutation.isPending}
+              disabled={addContactMutation.isPending || editContactMutation.isPending}
             >
-              {addContactMutation.isPending && (
+              {(addContactMutation.isPending || editContactMutation.isPending) && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
-              Add Contact
+              {'id' in newContact ? 'Update Contact' : 'Add Contact'}
             </Button>
           </div>
         </DialogContent>

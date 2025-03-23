@@ -8,28 +8,30 @@ import { z } from 'zod'
 const updateContactSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   phone: z.string().min(1, 'Phone number is required'),
-  email: z.string().email().optional(),
+  email: z.string().email().optional().nullable(),
   tags: z.array(z.string()).optional(),
   customFields: z.record(z.any()).optional(),
 })
 
-export async function PUT(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+type RouteContext = {
+  params: Promise<{ id: string }> | { id: string }
+}
+
+export async function PUT(request: Request, context: RouteContext) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { id } = context.params instanceof Promise ? await context.params : context.params
     const body = await request.json()
     const validatedData = updateContactSchema.parse(body)
 
     // Check if contact exists and belongs to user
     const existingContact = await prisma.contact.findFirst({
       where: {
-        id: params.id,
+        id,
         adminId: session.user.id,
       },
     })
@@ -48,7 +50,7 @@ export async function PUT(
           phone: validatedData.phone,
           adminId: session.user.id,
           NOT: {
-            id: params.id,
+            id,
           },
         },
       })
@@ -62,9 +64,7 @@ export async function PUT(
     }
 
     const contact = await prisma.contact.update({
-      where: {
-        id: params.id,
-      },
+      where: { id },
       data: validatedData,
     })
 
@@ -84,20 +84,19 @@ export async function PUT(
   }
 }
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(request: Request, context: RouteContext) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { id } = context.params instanceof Promise ? await context.params : context.params
+
     // Check if contact exists and belongs to user
     const existingContact = await prisma.contact.findFirst({
       where: {
-        id: params.id,
+        id,
         adminId: session.user.id,
       },
     })
@@ -111,9 +110,7 @@ export async function DELETE(
 
     // Delete contact
     await prisma.contact.delete({
-      where: {
-        id: params.id,
-      },
+      where: { id },
     })
 
     return NextResponse.json({ message: 'Contact deleted successfully' })
@@ -121,6 +118,45 @@ export async function DELETE(
     console.error('Error deleting contact:', error)
     return NextResponse.json(
       { error: 'Failed to delete contact' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function PATCH(request: Request, context: RouteContext) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { id } = context.params instanceof Promise ? await context.params : context.params
+    const body = await request.json()
+
+    // Validate request body
+    const validatedData = updateContactSchema.parse(body)
+
+    // Update the contact
+    const updatedContact = await prisma.contact.update({
+      where: { id },
+      data: {
+        name: validatedData.name,
+        phone: validatedData.phone,
+        email: validatedData.email,
+      },
+    })
+
+    return NextResponse.json(updatedContact)
+  } catch (error) {
+    console.error('Error updating contact:', error)
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid data provided', details: error.errors },
+        { status: 400 }
+      )
+    }
+    return NextResponse.json(
+      { error: 'Failed to update contact' },
       { status: 500 }
     )
   }
