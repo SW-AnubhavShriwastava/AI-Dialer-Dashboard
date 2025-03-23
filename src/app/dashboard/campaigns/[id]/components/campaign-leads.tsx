@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { Search, Loader2, Plus, Calendar, Phone, User } from 'lucide-react'
+import { Search, Loader2, Plus, Calendar, Phone, User, UserPlusIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -32,7 +32,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/components/ui/use-toast'
-import { AppointmentStatus } from '@prisma/client'
+import { AppointmentStatus, Contact } from '@prisma/client'
 
 interface Lead {
   id: string
@@ -63,6 +63,20 @@ interface CampaignLeadsProps {
   campaignId: string
 }
 
+function EmptyState() {
+  return (
+    <div className="flex min-h-[400px] flex-col items-center justify-center rounded-md border border-dashed p-8 text-center animate-in fade-in-50">
+      <div className="mx-auto flex max-w-[420px] flex-col items-center justify-center text-center">
+        <UserPlusIcon className="h-10 w-10 text-muted-foreground" />
+        <h3 className="mt-4 text-lg font-semibold">No leads</h3>
+        <p className="mb-4 mt-2 text-sm text-muted-foreground">
+          You haven't added any leads to this campaign yet. Add leads to start tracking potential customers.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 export function CampaignLeads({ campaignId }: CampaignLeadsProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -74,7 +88,12 @@ export function CampaignLeads({ campaignId }: CampaignLeadsProps) {
     source: '',
     notes: '',
   })
-  const [newAppointment, setNewAppointment] = useState({
+  const [newAppointment, setNewAppointment] = useState<{
+    title: string
+    description: string
+    appointmentTime: string
+    status: AppointmentStatus
+  }>({
     title: '',
     description: '',
     appointmentTime: '',
@@ -217,176 +236,189 @@ export function CampaignLeads({ campaignId }: CampaignLeadsProps) {
         </Button>
       </div>
 
-      {/* Leads Table */}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Contact</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Source</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredLeads?.map((lead) => (
-              <TableRow key={lead.id}>
-                <TableCell className="font-medium">{lead.contact.name}</TableCell>
-                <TableCell>{lead.contact.phone}</TableCell>
-                <TableCell>
-                  <Badge
-                    variant={
-                      lead.status === 'NEW'
-                        ? 'default'
-                        : lead.status === 'CONTACTED'
-                        ? 'secondary'
-                        : lead.status === 'QUALIFIED'
-                        ? 'success'
-                        : 'destructive'
-                    }
-                  >
-                    {lead.status}
-                  </Badge>
-                </TableCell>
-                <TableCell>{lead.source}</TableCell>
-                <TableCell>
-                  {format(new Date(lead.createdAt), 'PPP')}
-                </TableCell>
-                <TableCell>
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedLead(lead)}
-                      >
-                        View Details
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
-                      <DialogHeader>
-                        <DialogTitle>Lead Details</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label>Contact</Label>
-                            <p className="text-sm">{lead.contact.name}</p>
-                          </div>
-                          <div>
-                            <Label>Phone</Label>
-                            <p className="text-sm">{lead.contact.phone}</p>
-                          </div>
-                          <div>
-                            <Label>Status</Label>
-                            <Badge
-                              variant={
-                                lead.status === 'NEW'
-                                  ? 'default'
-                                  : lead.status === 'CONTACTED'
-                                  ? 'secondary'
-                                  : lead.status === 'QUALIFIED'
-                                  ? 'success'
-                                  : 'destructive'
-                              }
-                            >
-                              {lead.status}
-                            </Badge>
-                          </div>
-                          <div>
-                            <Label>Source</Label>
-                            <p className="text-sm">{lead.source}</p>
-                          </div>
-                          <div>
-                            <Label>Created</Label>
-                            <p className="text-sm">
-                              {format(new Date(lead.createdAt), 'PPP p')}
-                            </p>
-                          </div>
-                          <div>
-                            <Label>Last Updated</Label>
-                            <p className="text-sm">
-                              {format(new Date(lead.updatedAt), 'PPP p')}
-                            </p>
-                          </div>
-                        </div>
-
-                        {lead.notes && (
-                          <div>
-                            <Label>Notes</Label>
-                            <ScrollArea className="h-[100px] rounded-md border p-4">
-                              <p className="text-sm">{lead.notes}</p>
-                            </ScrollArea>
-                          </div>
-                        )}
-
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-lg font-medium">Appointments</h3>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setIsAddAppointmentDialogOpen(true)}
-                          >
-                            <Calendar className="mr-2 h-4 w-4" />
-                            Add Appointment
-                          </Button>
-                        </div>
-
-                        <div className="rounded-md border">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Title</TableHead>
-                                <TableHead>Date & Time</TableHead>
-                                <TableHead>Status</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {lead.appointments.map((appointment) => (
-                                <TableRow key={appointment.id}>
-                                  <TableCell className="font-medium">
-                                    {appointment.title}
-                                  </TableCell>
-                                  <TableCell>
-                                    {format(
-                                      new Date(appointment.appointmentTime),
-                                      'PPP p'
-                                    )}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Badge
-                                      variant={
-                                        appointment.status ===
-                                        AppointmentStatus.SCHEDULED
-                                          ? 'default'
-                                          : appointment.status ===
-                                            AppointmentStatus.COMPLETED
-                                          ? 'success'
-                                          : appointment.status ===
-                                            AppointmentStatus.CANCELLED
-                                          ? 'destructive'
-                                          : 'secondary'
-                                      }
-                                    >
-                                      {appointment.status}
-                                    </Badge>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </TableCell>
+      {!leads?.length ? (
+        <EmptyState />
+      ) : !filteredLeads?.length ? (
+        <div className="flex min-h-[400px] flex-col items-center justify-center rounded-md border border-dashed p-8 text-center animate-in fade-in-50">
+          <div className="mx-auto flex max-w-[420px] flex-col items-center justify-center text-center">
+            <Search className="h-10 w-10 text-muted-foreground" />
+            <h3 className="mt-4 text-lg font-semibold">No results found</h3>
+            <p className="mb-4 mt-2 text-sm text-muted-foreground">
+              No leads match your search criteria. Try adjusting your filters.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Contact</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Source</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+            <TableBody>
+              {filteredLeads?.map((lead) => (
+                <TableRow key={lead.id}>
+                  <TableCell className="font-medium">{lead.contact.name}</TableCell>
+                  <TableCell>{lead.contact.phone}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={
+                        lead.status === 'NEW'
+                          ? 'default'
+                          : lead.status === 'CONTACTED'
+                          ? 'secondary'
+                          : lead.status === 'QUALIFIED'
+                          ? 'default'
+                          : 'destructive'
+                      }
+                    >
+                      {lead.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{lead.source}</TableCell>
+                  <TableCell>
+                    {format(new Date(lead.createdAt), 'PPP')}
+                  </TableCell>
+                  <TableCell>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedLead(lead)}
+                        >
+                          View Details
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl">
+                        <DialogHeader>
+                          <DialogTitle>Lead Details</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label>Contact</Label>
+                              <p className="text-sm">{lead.contact.name}</p>
+                            </div>
+                            <div>
+                              <Label>Phone</Label>
+                              <p className="text-sm">{lead.contact.phone}</p>
+                            </div>
+                            <div>
+                              <Label>Status</Label>
+                              <Badge
+                                variant={
+                                  lead.status === 'NEW'
+                                    ? 'default'
+                                    : lead.status === 'CONTACTED'
+                                    ? 'secondary'
+                                    : lead.status === 'QUALIFIED'
+                                    ? 'default'
+                                    : 'destructive'
+                                }
+                              >
+                                {lead.status}
+                              </Badge>
+                            </div>
+                            <div>
+                              <Label>Source</Label>
+                              <p className="text-sm">{lead.source}</p>
+                            </div>
+                            <div>
+                              <Label>Created</Label>
+                              <p className="text-sm">
+                                {format(new Date(lead.createdAt), 'PPP p')}
+                              </p>
+                            </div>
+                            <div>
+                              <Label>Last Updated</Label>
+                              <p className="text-sm">
+                                {format(new Date(lead.updatedAt), 'PPP p')}
+                              </p>
+                            </div>
+                          </div>
+
+                          {lead.notes && (
+                            <div>
+                              <Label>Notes</Label>
+                              <ScrollArea className="h-[100px] rounded-md border p-4">
+                                <p className="text-sm">{lead.notes}</p>
+                              </ScrollArea>
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-medium">Appointments</h3>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setIsAddAppointmentDialogOpen(true)}
+                            >
+                              <Calendar className="mr-2 h-4 w-4" />
+                              Add Appointment
+                            </Button>
+                          </div>
+
+                          <div className="rounded-md border">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Title</TableHead>
+                                  <TableHead>Date & Time</TableHead>
+                                  <TableHead>Status</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {lead.appointments.map((appointment) => (
+                                  <TableRow key={appointment.id}>
+                                    <TableCell className="font-medium">
+                                      {appointment.title}
+                                    </TableCell>
+                                    <TableCell>
+                                      {format(
+                                        new Date(appointment.appointmentTime),
+                                        'PPP p'
+                                      )}
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge
+                                        variant={
+                                          appointment.status ===
+                                          AppointmentStatus.SCHEDULED
+                                            ? 'default'
+                                            : appointment.status ===
+                                              AppointmentStatus.COMPLETED
+                                            ? 'default'
+                                            : appointment.status ===
+                                              AppointmentStatus.CANCELLED
+                                            ? 'destructive'
+                                            : 'secondary'
+                                        }
+                                      >
+                                        {appointment.status}
+                                      </Badge>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       {/* Add Lead Dialog */}
       <Dialog open={isAddLeadDialogOpen} onOpenChange={setIsAddLeadDialogOpen}>
@@ -407,7 +439,7 @@ export function CampaignLeads({ campaignId }: CampaignLeadsProps) {
                   <SelectValue placeholder="Select a contact" />
                 </SelectTrigger>
                 <SelectContent>
-                  {contacts?.map((contact) => (
+                  {contacts?.map((contact: Contact) => (
                     <SelectItem key={contact.id} value={contact.id}>
                       {contact.name} ({contact.phone})
                     </SelectItem>
@@ -498,10 +530,10 @@ export function CampaignLeads({ campaignId }: CampaignLeadsProps) {
               <Label>Status</Label>
               <Select
                 value={newAppointment.status}
-                onValueChange={(value) =>
+                onValueChange={(value: AppointmentStatus) =>
                   setNewAppointment({
                     ...newAppointment,
-                    status: value as AppointmentStatus,
+                    status: value,
                   })
                 }
               >

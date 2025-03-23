@@ -1,16 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { format, startOfMonth, endOfMonth, isValid, parseISO } from 'date-fns'
+import { format, startOfMonth, endOfMonth, isValid, parseISO, startOfDay, endOfDay, addMonths } from 'date-fns'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
+import { ViewApi, CalendarApi } from '@fullcalendar/core'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Filter } from 'lucide-react'
+import { Loader2, Filter, CalendarIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -39,30 +40,40 @@ interface CampaignCalendarProps {
   campaignId: string
 }
 
+type CalendarView = 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay'
+
+interface AppointmentResponse {
+  data: Appointment[]
+}
+
 export function CampaignCalendar({ campaignId }: CampaignCalendarProps) {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [selectedStatus, setSelectedStatus] = useState<AppointmentStatus | 'ALL'>('ALL')
-  const [currentDate, setCurrentDate] = useState<Date>(new Date())
+  const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
+    start: startOfMonth(new Date()),
+    end: endOfMonth(new Date())
+  })
+  const calendarRef = useRef<any>(null)
+  const isInitialMount = useRef(true)
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['campaign-appointments', campaignId, selectedStatus, currentDate],
+  const { data, isLoading } = useQuery<AppointmentResponse>({
+    queryKey: ['campaign-appointments', campaignId, selectedStatus, dateRange.start.toISOString(), dateRange.end.toISOString()],
     queryFn: async () => {
-      const startDate = startOfMonth(currentDate).toISOString()
-      const endDate = endOfMonth(currentDate).toISOString()
-      const status = selectedStatus === 'ALL' ? null : selectedStatus
-      
       const response = await fetch(
         `/api/campaigns/${campaignId}/appointments?` + 
         new URLSearchParams({
-          startDate,
-          endDate,
-          ...(status && { status }),
-          limit: '100' // Increased limit for calendar view
+          startDate: dateRange.start.toISOString(),
+          endDate: dateRange.end.toISOString(),
+          ...(selectedStatus !== 'ALL' && { status: selectedStatus }),
+          limit: '100'
         })
       )
       if (!response.ok) throw new Error('Failed to fetch appointments')
       return response.json()
-    }
+    },
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
+    retry: false
   })
 
   const getStatusColor = (status: AppointmentStatus) => {
@@ -100,6 +111,40 @@ export function CampaignCalendar({ campaignId }: CampaignCalendarProps) {
     }
   }
 
+  const handleDatesSet = useCallback((args: { start: Date; end: Date; view: { type: string } }) => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
+
+    const calendarApi = calendarRef.current?.getApi()
+    if (!calendarApi) return
+
+    setDateRange({
+      start: args.start,
+      end: args.end
+    })
+  }, [])
+
+  useEffect(() => {
+    const calendarApi = calendarRef.current?.getApi()
+    if (!calendarApi) return
+
+    // Prevent the calendar from jumping to today's date on data updates
+    const currentDate = calendarApi.getDate()
+    if (currentDate) {
+      calendarApi.gotoDate(currentDate)
+    }
+  }, [data])
+
+  if (isLoading && isInitialMount.current) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
+  }
+
   const events = data?.data?.map((appointment: Appointment) => ({
     id: appointment.id,
     title: appointment.title,
@@ -108,14 +153,6 @@ export function CampaignCalendar({ campaignId }: CampaignCalendarProps) {
     backgroundColor: getStatusColor(appointment.status),
     allDay: false
   })) || []
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    )
-  }
 
   return (
     <div className="space-y-4">
@@ -143,6 +180,7 @@ export function CampaignCalendar({ campaignId }: CampaignCalendarProps) {
         <CardContent>
           <div className="h-[600px]">
             <FullCalendar
+              ref={calendarRef}
               plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
               initialView="dayGridMonth"
               headerToolbar={{
@@ -152,15 +190,22 @@ export function CampaignCalendar({ campaignId }: CampaignCalendarProps) {
               }}
               events={events}
               eventClick={(info) => {
-                const appointment = data.data.find((a: Appointment) => a.id === info.event.id)
+                const appointment = data?.data?.find((a: Appointment) => a.id === info.event.id)
                 if (appointment) setSelectedAppointment(appointment)
               }}
-              datesSet={(dateInfo) => {
-                setCurrentDate(dateInfo.start)
-              }}
+              datesSet={handleDatesSet}
               height="100%"
               slotMinTime="06:00:00"
               slotMaxTime="22:00:00"
+              firstDay={0}
+              nowIndicator={true}
+              dayMaxEvents={true}
+              weekends={true}
+              selectable={true}
+              selectMirror={true}
+              navLinks={true}
+              lazyFetching={true}
+              handleWindowResize={false}
             />
           </div>
         </CardContent>

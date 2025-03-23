@@ -36,6 +36,7 @@ import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { ContactStatus } from '@prisma/client'
 import { useToast } from '@/components/ui/use-toast'
+import { UserIcon } from 'lucide-react'
 
 interface Contact {
   id: string
@@ -72,6 +73,20 @@ interface ContactsResponse {
 
 interface CampaignContactsProps {
   campaignId: string
+}
+
+function EmptyState() {
+  return (
+    <div className="flex min-h-[400px] flex-col items-center justify-center rounded-md border border-dashed p-8 text-center animate-in fade-in-50">
+      <div className="mx-auto flex max-w-[420px] flex-col items-center justify-center text-center">
+        <UserIcon className="h-10 w-10 text-muted-foreground" />
+        <h3 className="mt-4 text-lg font-semibold">No contacts</h3>
+        <p className="mb-4 mt-2 text-sm text-muted-foreground">
+          You haven't added any contacts to this campaign yet. Add contacts to start making calls.
+        </p>
+      </div>
+    </div>
+  )
 }
 
 export function CampaignContacts({ campaignId }: CampaignContactsProps) {
@@ -291,233 +306,247 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end gap-2">
-        <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline">
-              <Upload className="mr-2 h-4 w-4" />
-              Import Contacts
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Import Contacts</DialogTitle>
-              <DialogDescription>
-                Upload a CSV or Excel file containing contacts. The file should have the following columns: name, phone, email (optional).
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="file">Excel/CSV File</Label>
-                <Input
-                  id="file"
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  onChange={handleImportContacts}
-                  disabled={importContactsMutation.isPending || !!importProgress}
-                />
-              </div>
-
-              {importProgress && (
-                <div className="space-y-4">
-                  <Progress
-                    value={
-                      importProgress.total
-                        ? (importProgress.processed / importProgress.total) * 100
-                        : 0
-                    }
-                  />
-                  <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>
-                      Processed: {importProgress.processed}/{importProgress.total}
-                    </span>
-                    <span>
-                      Success: {importProgress.successful} | Failed:{' '}
-                      {importProgress.failed}
-                    </span>
-                  </div>
-                  {importProgress.errors.length > 0 && (
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>Import Errors</AlertTitle>
-                      <AlertDescription>
-                        <ul className="list-disc pl-4">
-                          {importProgress.errors.map((error, index) => (
-                            <li key={index}>{error}</li>
-                          ))}
-                        </ul>
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </div>
-              )}
-
-              {!importProgress && importContactsMutation.isSuccess && (
-                <Alert>
-                  <CheckCircle2 className="h-4 w-4" />
-                  <AlertTitle>Import Complete</AlertTitle>
-                  <AlertDescription>
-                    All contacts have been imported successfully.
-                  </AlertDescription>
-                </Alert>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        <Button
-          variant="outline"
-          onClick={() => exportContactsMutation.mutate()}
-          disabled={exportContactsMutation.isPending}
-        >
-          <Download className="mr-2 h-4 w-4" />
-          Export Contacts
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button onClick={() => setIsImportDialogOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Import Contacts
+          </Button>
+          <Button onClick={() => exportContactsMutation.mutate()}>
+            <Download className="mr-2 h-4 w-4" />
+            Export Contacts
+          </Button>
+          <Button onClick={() => setIsSelectContactDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Select Contact
+          </Button>
+        </div>
+        <Button onClick={() => setIsAddContactDialogOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Contact
         </Button>
+      </div>
 
-        <Dialog open={isSelectContactDialogOpen} onOpenChange={setIsSelectContactDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline">
-              <Plus className="mr-2 h-4 w-4" />
-              Select Contact
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Select Contact</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Contact</Label>
-                <Select
-                  value={selectedContactId}
-                  onValueChange={setSelectedContactId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a contact" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allContacts?.map((contact) => (
-                      <SelectItem key={contact.id} value={contact.id}>
-                        {contact.name} ({contact.phone})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                onClick={() => addExistingContactMutation.mutate(selectedContactId)}
-                className="w-full"
-                disabled={!selectedContactId || addExistingContactMutation.isPending}
-              >
-                {addExistingContactMutation.isPending && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                Add Contact
-              </Button>
+      {contacts?.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Last Called</TableHead>
+                <TableHead>Call Attempts</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {contacts?.map((contact) => (
+                <TableRow key={contact.id}>
+                  <TableCell className="font-medium">{contact.name}</TableCell>
+                  <TableCell>{contact.phone}</TableCell>
+                  <TableCell>{contact.email || '-'}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={
+                        contact.status === ContactStatus.ACTIVE
+                          ? 'default'
+                          : contact.status === ContactStatus.INACTIVE
+                          ? 'secondary'
+                          : 'destructive'
+                      }
+                    >
+                      {contact.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {contact.lastCalled
+                      ? format(new Date(contact.lastCalled), 'PPp')
+                      : '-'}
+                  </TableCell>
+                  <TableCell>{contact.callAttempts}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+        <DialogTrigger asChild>
+          <Button variant="outline">
+            <Upload className="mr-2 h-4 w-4" />
+            Import Contacts
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Import Contacts</DialogTitle>
+            <DialogDescription>
+              Upload a CSV or Excel file containing contacts. The file should have the following columns: name, phone, email (optional).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="file">Excel/CSV File</Label>
+              <Input
+                id="file"
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={handleImportContacts}
+                disabled={importContactsMutation.isPending || !!importProgress}
+              />
             </div>
-          </DialogContent>
-        </Dialog>
 
-        <Dialog open={isAddContactDialogOpen} onOpenChange={setIsAddContactDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
+            {importProgress && (
+              <div className="space-y-4">
+                <Progress
+                  value={
+                    importProgress.total
+                      ? (importProgress.processed / importProgress.total) * 100
+                      : 0
+                  }
+                />
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>
+                    Processed: {importProgress.processed}/{importProgress.total}
+                  </span>
+                  <span>
+                    Success: {importProgress.successful} | Failed:{' '}
+                    {importProgress.failed}
+                  </span>
+                </div>
+                {importProgress.errors.length > 0 && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Import Errors</AlertTitle>
+                    <AlertDescription>
+                      <ul className="list-disc pl-4">
+                        {importProgress.errors.map((error, index) => (
+                          <li key={index}>{error}</li>
+                        ))}
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            )}
+
+            {!importProgress && importContactsMutation.isSuccess && (
+              <Alert>
+                <CheckCircle2 className="h-4 w-4" />
+                <AlertTitle>Import Complete</AlertTitle>
+                <AlertDescription>
+                  All contacts have been imported successfully.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isSelectContactDialogOpen} onOpenChange={setIsSelectContactDialogOpen}>
+        <DialogTrigger asChild>
+          <Button variant="outline">
+            <Plus className="mr-2 h-4 w-4" />
+            Select Contact
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select Contact</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Contact</Label>
+              <Select
+                value={selectedContactId}
+                onValueChange={setSelectedContactId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a contact" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allContacts?.map((contact) => (
+                    <SelectItem key={contact.id} value={contact.id}>
+                      {contact.name} ({contact.phone})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              onClick={() => addExistingContactMutation.mutate(selectedContactId)}
+              className="w-full"
+              disabled={!selectedContactId || addExistingContactMutation.isPending}
+            >
+              {addExistingContactMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
               Add Contact
             </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Contact</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  value={newContact.name}
-                  onChange={(e) =>
-                    setNewContact({ ...newContact, name: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
-                <Input
-                  id="phone"
-                  value={newContact.phone}
-                  onChange={(e) =>
-                    setNewContact({ ...newContact, phone: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email (Optional)</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={newContact.email}
-                  onChange={(e) =>
-                    setNewContact({ ...newContact, email: e.target.value })
-                  }
-                />
-              </div>
-              <Button
-                onClick={handleAddContact}
-                className="w-full"
-                disabled={addContactMutation.isPending}
-              >
-                {addContactMutation.isPending && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                Add Contact
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Last Called</TableHead>
-              <TableHead>Call Attempts</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {contacts?.map((contact) => (
-              <TableRow key={contact.id}>
-                <TableCell className="font-medium">{contact.name}</TableCell>
-                <TableCell>{contact.phone}</TableCell>
-                <TableCell>{contact.email || '-'}</TableCell>
-                <TableCell>
-                  <Badge
-                    variant={
-                      contact.status === ContactStatus.ACTIVE
-                        ? 'default'
-                        : contact.status === ContactStatus.INACTIVE
-                        ? 'secondary'
-                        : 'destructive'
-                    }
-                  >
-                    {contact.status}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  {contact.lastCalled
-                    ? format(new Date(contact.lastCalled), 'PPp')
-                    : '-'}
-                </TableCell>
-                <TableCell>{contact.callAttempts}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      <Dialog open={isAddContactDialogOpen} onOpenChange={setIsAddContactDialogOpen}>
+        <DialogTrigger asChild>
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Contact
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Contact</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                value={newContact.name}
+                onChange={(e) =>
+                  setNewContact({ ...newContact, name: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone</Label>
+              <Input
+                id="phone"
+                value={newContact.phone}
+                onChange={(e) =>
+                  setNewContact({ ...newContact, phone: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email (Optional)</Label>
+              <Input
+                id="email"
+                type="email"
+                value={newContact.email}
+                onChange={(e) =>
+                  setNewContact({ ...newContact, email: e.target.value })
+                }
+              />
+            </div>
+            <Button
+              onClick={handleAddContact}
+              className="w-full"
+              disabled={addContactMutation.isPending}
+            >
+              {addContactMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Add Contact
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 } 
