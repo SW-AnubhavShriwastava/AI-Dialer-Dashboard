@@ -408,10 +408,7 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
             Select Contact
           </Button>
         </div>
-        <Button onClick={() => {
-          setNewContact({ name: '', phone: '', email: '' })
-          setIsAddContactDialogOpen(true)
-        }}>
+        <Button onClick={() => setIsAddContactDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Add Contact
         </Button>
@@ -503,12 +500,6 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
       )}
 
       <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
-        <DialogTrigger asChild>
-          <Button variant="outline">
-            <Upload className="mr-2 h-4 w-4" />
-            Import Contacts
-          </Button>
-        </DialogTrigger>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Import Contacts</DialogTitle>
