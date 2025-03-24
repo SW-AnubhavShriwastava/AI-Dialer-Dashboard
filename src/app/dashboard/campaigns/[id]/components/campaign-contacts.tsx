@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Upload, Download, Loader2, AlertCircle, CheckCircle2, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Upload, Download, Loader2, AlertCircle, CheckCircle2, MoreHorizontal, Pencil, Trash2, Phone } from 'lucide-react'
 import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import {
@@ -114,6 +114,7 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
   })
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const [isCalling, setIsCalling] = useState<string | null>(null)
 
   // Fetch campaign contacts
   const { data: contacts, isLoading } = useQuery<Contact[]>({
@@ -343,6 +344,61 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
     },
   })
 
+  // Add call mutation
+  const callMutation = useMutation({
+    mutationFn: async (contact: Contact) => {
+      console.log('Initiating call to:', contact.phone)
+      try {
+        const response = await fetch('/api/calls/start_call', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to_number: contact.phone,
+            system_message: "You are a helpful AI assistant that makes phone calls to potential customers. Your goal is to understand their needs and provide relevant information about our products and services. Be professional, courteous, and concise.",
+            initial_message: `Hello ${contact.name}, this is an AI assistant calling on behalf of our company. I hope I'm not catching you at a bad time.`
+          }),
+        })
+        
+        console.log('Response status:', response.status)
+        const responseText = await response.text()
+        console.log('Response text:', responseText)
+        
+        if (!response.ok) {
+          throw new Error(responseText || 'Failed to initiate call')
+        }
+        
+        try {
+          return JSON.parse(responseText)
+        } catch (e) {
+          console.error('Failed to parse response:', responseText)
+          throw new Error('Invalid response from server')
+        }
+      } catch (error) {
+        console.error('Call error:', error)
+        throw error
+      }
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['campaign-contacts', campaignId] })
+      setIsCalling(null)
+      toast({
+        title: 'Success',
+        description: `Call initiated successfully. Call SID: ${data.call_sid}`,
+      })
+    },
+    onError: (error: Error) => {
+      setIsCalling(null)
+      console.error('Call error:', error)
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to initiate call',
+        variant: 'destructive',
+      })
+    },
+  })
+
   const handleAddOrEditContact = () => {
     if (!newContact.name.trim() || !newContact.phone.trim()) {
       toast({
@@ -427,7 +483,7 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
                 <TableHead>Status</TableHead>
                 <TableHead>Last Called</TableHead>
                 <TableHead>Call Attempts</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
+                <TableHead className="w-[100px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -456,41 +512,58 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
                   </TableCell>
                   <TableCell>{contact.callAttempts}</TableCell>
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Open menu</span>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setNewContact({
-                              id: contact.id,
-                              name: contact.name,
-                              phone: contact.phone,
-                              email: contact.email || '',
-                            } as any)
-                            setIsAddContactDialogOpen(true)
-                          }}
-                        >
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={() => {
-                            if (confirm('Are you sure you want to remove this contact from the campaign?')) {
-                              deleteContactMutation.mutate(contact.id)
-                            }
-                          }}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setIsCalling(contact.id)
+                          callMutation.mutate(contact)
+                        }}
+                        disabled={isCalling === contact.id}
+                      >
+                        {isCalling === contact.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Phone className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Open menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setNewContact({
+                                id: contact.id,
+                                name: contact.name,
+                                phone: contact.phone,
+                                email: contact.email || '',
+                              } as any)
+                              setIsAddContactDialogOpen(true)
+                            }}
+                          >
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => {
+                              if (confirm('Are you sure you want to remove this contact from the campaign?')) {
+                                deleteContactMutation.mutate(contact.id)
+                              }
+                            }}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
