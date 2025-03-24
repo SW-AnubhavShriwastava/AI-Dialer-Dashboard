@@ -1,11 +1,27 @@
 import { NextResponse } from 'next/server'
 
+type RouteParams = {
+  params: {
+    id: string
+    callSid: string
+  }
+}
+
 export async function GET(
   request: Request,
-  { params }: { params: { id: string; callSid: string } }
+  { params }: RouteParams
 ) {
+  const callSid = params.callSid
+
+  if (!callSid) {
+    return NextResponse.json(
+      { error: 'Call SID is required' },
+      { status: 400 }
+    )
+  }
+
   try {
-    const response = await fetch(`http://127.0.0.1:8000/transcript/${params.callSid}`, {
+    const response = await fetch(`http://127.0.0.1:8000/transcript/${callSid}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

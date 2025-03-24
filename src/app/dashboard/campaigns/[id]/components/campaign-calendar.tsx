@@ -11,241 +11,233 @@ import { ViewApi, CalendarApi } from '@fullcalendar/core'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Filter, CalendarIcon } from 'lucide-react'
+import { Loader2, Filter, CalendarIcon, Phone, Clock, Calendar as CalendarIcon2, User, Hash } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { AppointmentStatus } from '@prisma/client'
+import { Separator } from '@/components/ui/separator'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { useParams } from 'next/navigation'
+import { toast } from 'sonner'
 
-interface Appointment {
+interface CalendarEvent {
   id: string
   title: string
-  description: string
-  appointmentTime: string
-  endTime: string | null
-  status: AppointmentStatus
-  contact: {
-    name: string
-    phone: string
-    email: string | null
-  }
+  start: string
+  end: string
+  type: 'appointment' | 'scheduled_call'
+  phone_number: string
+  backgroundColor: string
+  borderColor: string
 }
 
-interface CampaignCalendarProps {
-  campaignId: string
-}
+export function CampaignCalendar() {
+  const params = useParams<{ id: string }>()
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
 
-type CalendarView = 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay'
+  const { data: events = [], isLoading } = useQuery({
+    queryKey: ['calendar-events', params.id],
+    queryFn: async ({ queryKey }) => {
+      const [_, campaignId] = queryKey
+      const now = new Date()
+      const start = new Date(now.getFullYear(), now.getMonth(), 1)
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
 
-interface AppointmentResponse {
-  data: Appointment[]
-}
-
-export function CampaignCalendar({ campaignId }: CampaignCalendarProps) {
-  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
-  const [selectedStatus, setSelectedStatus] = useState<AppointmentStatus | 'ALL'>('ALL')
-  const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
-    start: startOfMonth(new Date()),
-    end: endOfMonth(new Date())
-  })
-  const calendarRef = useRef<any>(null)
-  const isInitialMount = useRef(true)
-
-  const { data, isLoading } = useQuery<AppointmentResponse>({
-    queryKey: ['campaign-appointments', campaignId, selectedStatus, dateRange.start.toISOString(), dateRange.end.toISOString()],
-    queryFn: async () => {
       const response = await fetch(
-        `/api/campaigns/${campaignId}/appointments?` + 
-        new URLSearchParams({
-          startDate: dateRange.start.toISOString(),
-          endDate: dateRange.end.toISOString(),
-          ...(selectedStatus !== 'ALL' && { status: selectedStatus }),
-          limit: '100'
-        })
+        `/api/campaigns/${campaignId}/calendar-events?start=${start.toISOString()}&end=${end.toISOString()}`
       )
-      if (!response.ok) throw new Error('Failed to fetch appointments')
-      return response.json()
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch calendar events')
+      }
+
+      const data = await response.json()
+      return data.events.map((event: CalendarEvent) => ({
+        ...event,
+        display: 'block',
+        classNames: [event.type === 'appointment' ? 'appointment-event' : 'scheduled-call-event'],
+      }))
     },
-    staleTime: 30000,
-    refetchOnWindowFocus: false,
-    retry: false
   })
 
-  const getStatusColor = (status: AppointmentStatus) => {
-    switch (status) {
-      case AppointmentStatus.COMPLETED:
-        return '#22c55e'
-      case AppointmentStatus.CANCELLED:
-        return '#ef4444'
-      case AppointmentStatus.NO_SHOW:
-        return '#f59e0b'
-      default:
-        return '#3b82f6'
+  const handleEventClick = (info: { event: any }) => {
+    const event = events.find((e: CalendarEvent) => e.id === info.event.id)
+    if (event) {
+      setSelectedEvent(event)
     }
   }
 
-  const formatDate = (dateString: string | null | undefined): string => {
-    if (!dateString) return '-'
+  const handleCallClick = async () => {
+    if (!selectedEvent?.phone_number) return
+
     try {
-      const date = parseISO(dateString)
-      if (!isValid(date)) return '-'
-      return format(date, 'PPP p')
-    } catch {
-      return '-'
+      const response = await fetch(`/api/calls/start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to_number: selectedEvent.phone_number,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to initiate call')
+      }
+
+      toast.success('Call initiated successfully')
+      setSelectedEvent(null)
+    } catch (error) {
+      console.error('Error initiating call:', error)
+      toast.error('Failed to initiate call')
     }
   }
 
-  const formatTime = (dateString: string | null | undefined): string => {
-    if (!dateString) return '-'
-    try {
-      const date = parseISO(dateString)
-      if (!isValid(date)) return '-'
-      return format(date, 'p')
-    } catch {
-      return '-'
-    }
+  if (isLoading) {
+    return <div>Loading calendar...</div>
   }
-
-  const handleDatesSet = useCallback((args: { start: Date; end: Date; view: { type: string } }) => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false
-      return
-    }
-
-    const calendarApi = calendarRef.current?.getApi()
-    if (!calendarApi) return
-
-    setDateRange({
-      start: args.start,
-      end: args.end
-    })
-  }, [])
-
-  useEffect(() => {
-    const calendarApi = calendarRef.current?.getApi()
-    if (!calendarApi) return
-
-    // Prevent the calendar from jumping to today's date on data updates
-    const currentDate = calendarApi.getDate()
-    if (currentDate) {
-      calendarApi.gotoDate(currentDate)
-    }
-  }, [data])
-
-  if (isLoading && isInitialMount.current) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    )
-  }
-
-  const events = data?.data?.map((appointment: Appointment) => ({
-    id: appointment.id,
-    title: appointment.title,
-    start: appointment.appointmentTime,
-    end: appointment.endTime || undefined,
-    backgroundColor: getStatusColor(appointment.status),
-    allDay: false
-  })) || []
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Campaign Calendar</CardTitle>
-          <div className="flex items-center gap-2">
-            <Select
-              value={selectedStatus}
-              onValueChange={(value) => setSelectedStatus(value as AppointmentStatus | 'ALL')}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Statuses</SelectItem>
-                <SelectItem value={AppointmentStatus.SCHEDULED}>Scheduled</SelectItem>
-                <SelectItem value={AppointmentStatus.COMPLETED}>Completed</SelectItem>
-                <SelectItem value={AppointmentStatus.CANCELLED}>Cancelled</SelectItem>
-                <SelectItem value={AppointmentStatus.NO_SHOW}>No Show</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[600px]">
-            <FullCalendar
-              ref={calendarRef}
-              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-              initialView="dayGridMonth"
-              headerToolbar={{
-                left: 'prev,next today',
-                center: 'title',
-                right: 'dayGridMonth,timeGridWeek,timeGridDay'
-              }}
-              events={events}
-              eventClick={(info) => {
-                const appointment = data?.data?.find((a: Appointment) => a.id === info.event.id)
-                if (appointment) setSelectedAppointment(appointment)
-              }}
-              datesSet={handleDatesSet}
-              height="100%"
-              slotMinTime="06:00:00"
-              slotMaxTime="22:00:00"
-              firstDay={0}
-              nowIndicator={true}
-              dayMaxEvents={true}
-              weekends={true}
-              selectable={true}
-              selectMirror={true}
-              navLinks={true}
-              lazyFetching={true}
-              handleWindowResize={false}
-            />
-          </div>
-        </CardContent>
-      </Card>
+    <Card className="col-span-4 lg:col-span-3">
+      <CardContent className="p-6">
+        <style jsx global>{`
+          .appointment-event {
+            background-color: #10B981 !important;
+            border-color: #059669 !important;
+            color: white !important;
+            padding: 4px 8px !important;
+            border-radius: 4px !important;
+            font-size: 0.875rem !important;
+            margin-bottom: 2px !important;
+          }
+          .scheduled-call-event {
+            background-color: #6366F1 !important;
+            border-color: #4F46E5 !important;
+            color: white !important;
+            padding: 4px 8px !important;
+            border-radius: 4px !important;
+            font-size: 0.875rem !important;
+            margin-bottom: 2px !important;
+          }
+          .fc-event {
+            cursor: pointer !important;
+          }
+          .fc-event-time {
+            font-weight: 500 !important;
+          }
+          .fc-event-title {
+            font-weight: 400 !important;
+          }
+          .fc-daygrid-day-events {
+            max-height: 120px !important;
+            overflow-y: auto !important;
+            scrollbar-width: thin !important;
+          }
+          .fc-daygrid-day-events::-webkit-scrollbar {
+            width: 4px !important;
+          }
+          .fc-daygrid-day-events::-webkit-scrollbar-track {
+            background: #f1f1f1 !important;
+          }
+          .fc-daygrid-day-events::-webkit-scrollbar-thumb {
+            background: #888 !important;
+            border-radius: 4px !important;
+          }
+          .fc-daygrid-day-events::-webkit-scrollbar-thumb:hover {
+            background: #555 !important;
+          }
+          .fc-daygrid-more-link {
+            font-size: 0.75rem !important;
+            color: #6B7280 !important;
+          }
+        `}</style>
+        <FullCalendar
+          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+          initialView="dayGridMonth"
+          headerToolbar={{
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay',
+          }}
+          events={events}
+          eventClick={handleEventClick}
+          height="auto"
+          aspectRatio={1.5}
+          eventTimeFormat={{
+            hour: '2-digit',
+            minute: '2-digit',
+            meridiem: 'short'
+          }}
+          slotLabelFormat={{
+            hour: '2-digit',
+            minute: '2-digit',
+            meridiem: 'short'
+          }}
+          dayMaxEvents={false}
+          moreLinkClick="popover"
+        />
+      </CardContent>
 
-      <Dialog open={!!selectedAppointment} onOpenChange={() => setSelectedAppointment(null)}>
-        <DialogContent>
+      <Dialog open={!!selectedEvent} onOpenChange={() => setSelectedEvent(null)}>
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>{selectedAppointment?.title}</DialogTitle>
+            <DialogTitle className="text-xl font-semibold flex items-center gap-2">
+              {selectedEvent?.type === 'appointment' ? (
+                <CalendarIcon2 className="h-5 w-5 text-emerald-500" />
+              ) : (
+                <Phone className="h-5 w-5 text-indigo-500" />
+              )}
+              {selectedEvent?.title}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Badge variant={
-                selectedAppointment?.status === AppointmentStatus.COMPLETED ? 'default' : 
-                selectedAppointment?.status === AppointmentStatus.CANCELLED ? 'destructive' :
-                selectedAppointment?.status === AppointmentStatus.NO_SHOW ? 'secondary' : 'outline'
-              }>
-                {selectedAppointment?.status}
+            <div>
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
+                <Hash className="h-4 w-4" />
+                ID
+              </div>
+              <p className="text-sm font-mono">{selectedEvent?.id}</p>
+            </div>
+            <Separator />
+            <div>
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
+                <Clock className="h-4 w-4" />
+                Date & Time
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm">
+                  {selectedEvent?.start &&
+                    format(new Date(selectedEvent.start), 'PPP')}
+                </p>
+                <p className="text-sm font-medium">
+                  {selectedEvent?.start &&
+                    format(new Date(selectedEvent.start), 'p')}
+                  {selectedEvent?.end &&
+                    ` - ${format(new Date(selectedEvent.end), 'p')}`}
+                </p>
+              </div>
+            </div>
+            <Separator />
+            <div>
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
+                <User className="h-4 w-4" />
+                Contact Details
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium">{selectedEvent?.phone_number}</p>
+              </div>
+            </div>
+            <Separator />
+            <div>
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-500 mb-1">
+                <CalendarIcon className="h-4 w-4" />
+                Event Type
+              </div>
+              <Badge variant={selectedEvent?.type === 'appointment' ? 'default' : 'secondary'}>
+                {selectedEvent?.type === 'appointment' ? 'Appointment' : 'Scheduled Call'}
               </Badge>
-            </div>
-            <div>
-              <h4 className="font-medium">Contact Information</h4>
-              <p className="text-sm text-muted-foreground">{selectedAppointment?.contact.name}</p>
-              <p className="text-sm text-muted-foreground">{selectedAppointment?.contact.phone}</p>
-              <p className="text-sm text-muted-foreground">{selectedAppointment?.contact.email || '-'}</p>
-            </div>
-            <div>
-              <h4 className="font-medium">Time</h4>
-              <p className="text-sm text-muted-foreground">
-                {formatDate(selectedAppointment?.appointmentTime)}
-                {selectedAppointment?.endTime ? ` - ${formatTime(selectedAppointment.endTime)}` : ''}
-              </p>
-            </div>
-            <div>
-              <h4 className="font-medium">Description</h4>
-              <p className="text-sm text-muted-foreground">{selectedAppointment?.description || '-'}</p>
             </div>
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </Card>
   )
 } 
