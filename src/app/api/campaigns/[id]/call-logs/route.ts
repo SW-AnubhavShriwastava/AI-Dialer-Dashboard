@@ -7,55 +7,49 @@ type RouteContext = {
   params: Promise<{ id: string }>
 }
 
-export async function GET(request: Request, context: RouteContext) {
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { id } = await context.params
-
-    // Verify campaign belongs to the admin
-    const campaign = await prisma.campaign.findFirst({
-      where: {
-        id,
-        adminId: session.user.id,
+    // Get all transcripts from the AI-Dialer backend
+    const response = await fetch('http://127.0.0.1:8000/all_transcripts', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
       },
     })
 
-    if (!campaign) {
-      return NextResponse.json(
-        { error: 'Campaign not found or unauthorized' },
-        { status: 404 }
-      )
+    if (!response.ok) {
+      throw new Error('Failed to fetch transcripts')
     }
 
-    // Get call logs for the campaign
-    const callLogs = await prisma.callLog.findMany({
-      where: {
-        campaignId: id,
-      },
-      include: {
-        contact: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            email: true,
-          },
-        },
-      },
-      orderBy: {
-        startedAt: 'desc',
-      },
+    const data = await response.json()
+    const transcripts = data.transcripts || []
+
+    // Format the transcripts into call logs
+    const callLogs = transcripts.map((transcript: any) => {
+      const lastUpdated = new Date(transcript.last_updated)
+      return {
+        id: transcript.id,
+        callSid: transcript.call_sid,
+        phoneNumber: transcript.phone_number,
+        timestamp: lastUpdated.toISOString(),
+        status: 'completed', // We can enhance this by fetching actual status if needed
+        duration: '00:00', // We can enhance this by calculating actual duration if needed
+        hasRecording: true, // We can enhance this by checking if recording exists
+        hasTranscript: true
+      }
     })
 
-    return NextResponse.json(callLogs)
+    // Sort by timestamp descending (most recent first)
+    callLogs.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+    return NextResponse.json({ callLogs }, { status: 200 })
   } catch (error) {
-    console.error('Error fetching campaign call logs:', error)
+    console.error('Error fetching call logs:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch campaign call logs' },
+      { error: error instanceof Error ? error.message : 'Failed to fetch call logs' },
       { status: 500 }
     )
   }

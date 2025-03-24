@@ -221,7 +221,7 @@ export default function CampaignDetailsPage() {
         </TabsContent>
 
         <TabsContent value="call-logs" className="space-y-4">
-          <CampaignCallLogs campaignId={campaignId} />
+          <CampaignCallLogs />
         </TabsContent>
 
         <TabsContent value="leads" className="space-y-4">
