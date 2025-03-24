@@ -356,8 +356,6 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
           },
           body: JSON.stringify({
             to_number: contact.phone,
-            system_message: "You are a helpful AI assistant that makes phone calls to potential customers. Your goal is to understand their needs and provide relevant information about our products and services. Be professional, courteous, and concise.",
-            initial_message: `Hello ${contact.name}, this is an AI assistant calling on behalf of our company. I hope I'm not catching you at a bad time.`
           }),
         })
         
