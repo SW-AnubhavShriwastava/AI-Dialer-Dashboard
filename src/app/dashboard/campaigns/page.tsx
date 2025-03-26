@@ -27,6 +27,8 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CampaignStatus } from '@/types/prisma'
 import { useToast } from '@/components/ui/use-toast'
+import { cn } from "@/lib/utils"
+import { CalendarIcon } from "lucide-react"
 
 interface Campaign {
   id: string
@@ -47,13 +49,31 @@ interface Campaign {
   }
 }
 
+interface EditCampaignData {
+  id: string
+  name: string
+  description: string
+  startDate: string | null
+  endDate: string | null
+}
+
 export default function CampaignsPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [newCampaign, setNewCampaign] = useState({
     name: '',
     description: '',
+    startDate: null as string | null,
+    endDate: null as string | null,
+  })
+  const [editCampaign, setEditCampaign] = useState<EditCampaignData>({
+    id: '',
+    name: '',
+    description: '',
+    startDate: null,
+    endDate: null,
   })
   const { toast } = useToast()
 
@@ -81,7 +101,7 @@ export default function CampaignsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
       setIsCreateDialogOpen(false)
-      setNewCampaign({ name: '', description: '' })
+      setNewCampaign({ name: '', description: '', startDate: null, endDate: null })
       toast({
         title: 'Success',
         description: 'Campaign created successfully',
@@ -91,6 +111,40 @@ export default function CampaignsPage() {
       toast({
         title: 'Error',
         description: 'Failed to create campaign',
+        variant: 'destructive',
+      })
+    },
+  })
+
+  // Edit campaign mutation
+  const editCampaignMutation = useMutation({
+    mutationFn: async (campaign: EditCampaignData) => {
+      const response = await fetch(`/api/campaigns/${campaign.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: campaign.name,
+          description: campaign.description,
+          startDate: campaign.startDate,
+          endDate: campaign.endDate,
+        }),
+      })
+      if (!response.ok) throw new Error('Failed to update campaign')
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] })
+      setIsEditDialogOpen(false)
+      setEditCampaign({ id: '', name: '', description: '', startDate: null, endDate: null })
+      toast({
+        title: 'Success',
+        description: 'Campaign updated successfully',
+      })
+    },
+    onError: () => {
+      toast({
+        title: 'Error',
+        description: 'Failed to update campaign',
         variant: 'destructive',
       })
     },
@@ -161,7 +215,60 @@ export default function CampaignsPage() {
       })
       return
     }
+
+    // Validate dates
+    if (newCampaign.startDate && newCampaign.endDate) {
+      const startDate = new Date(newCampaign.startDate)
+      const endDate = new Date(newCampaign.endDate)
+      if (endDate < startDate) {
+        toast({
+          title: 'Error',
+          description: 'End date must be after start date',
+          variant: 'destructive',
+        })
+        return
+      }
+    }
+
     createCampaignMutation.mutate(newCampaign)
+  }
+
+  const handleEditCampaign = () => {
+    if (!editCampaign.name.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Campaign name is required',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Validate dates
+    if (editCampaign.startDate && editCampaign.endDate) {
+      const startDate = new Date(editCampaign.startDate)
+      const endDate = new Date(editCampaign.endDate)
+      if (endDate < startDate) {
+        toast({
+          title: 'Error',
+          description: 'End date must be after start date',
+          variant: 'destructive',
+        })
+        return
+      }
+    }
+
+    editCampaignMutation.mutate(editCampaign)
+  }
+
+  const handleEditClick = (campaign: Campaign) => {
+    setEditCampaign({
+      id: campaign.id,
+      name: campaign.name,
+      description: campaign.description || '',
+      startDate: campaign.startDate,
+      endDate: campaign.endDate,
+    })
+    setIsEditDialogOpen(true)
   }
 
   if (isLoading) {
@@ -183,11 +290,11 @@ export default function CampaignsPage() {
               Create Campaign
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Create New Campaign</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
+            <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Name</Label>
                 <Input
@@ -211,6 +318,51 @@ export default function CampaignsPage() {
                   }
                 />
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="start-date">Start Date</Label>
+                  <div className="relative">
+                    <Input
+                      id="start-date"
+                      type="date"
+                      value={newCampaign.startDate ? new Date(newCampaign.startDate).toISOString().split('T')[0] : ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setNewCampaign({
+                          ...newCampaign,
+                          startDate: e.target.value ? new Date(e.target.value).toISOString() : null,
+                        })
+                      }
+                      className={cn(
+                        "pl-10",
+                        !newCampaign.startDate && "text-muted-foreground"
+                      )}
+                    />
+                    <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="end-date">End Date</Label>
+                  <div className="relative">
+                    <Input
+                      id="end-date"
+                      type="date"
+                      value={newCampaign.endDate ? new Date(newCampaign.endDate).toISOString().split('T')[0] : ''}
+                      min={newCampaign.startDate ? new Date(newCampaign.startDate).toISOString().split('T')[0] : undefined}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setNewCampaign({
+                          ...newCampaign,
+                          endDate: e.target.value ? new Date(e.target.value).toISOString() : null,
+                        })
+                      }
+                      className={cn(
+                        "pl-10",
+                        !newCampaign.endDate && "text-muted-foreground"
+                      )}
+                    />
+                    <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  </div>
+                </div>
+              </div>
               <Button
                 onClick={handleCreateCampaign}
                 className="w-full"
@@ -220,6 +372,94 @@ export default function CampaignsPage() {
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 Create
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Edit Campaign</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Name</Label>
+                <Input
+                  id="edit-name"
+                  value={editCampaign.name}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setEditCampaign({ ...editCampaign, name: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-description">Description</Label>
+                <Textarea
+                  id="edit-description"
+                  value={editCampaign.description}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                    setEditCampaign({
+                      ...editCampaign,
+                      description: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-start-date">Start Date</Label>
+                  <div className="relative">
+                    <Input
+                      id="edit-start-date"
+                      type="date"
+                      value={editCampaign.startDate ? new Date(editCampaign.startDate).toISOString().split('T')[0] : ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setEditCampaign({
+                          ...editCampaign,
+                          startDate: e.target.value ? new Date(e.target.value).toISOString() : null,
+                        })
+                      }
+                      className={cn(
+                        "pl-10",
+                        !editCampaign.startDate && "text-muted-foreground"
+                      )}
+                    />
+                    <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-end-date">End Date</Label>
+                  <div className="relative">
+                    <Input
+                      id="edit-end-date"
+                      type="date"
+                      value={editCampaign.endDate ? new Date(editCampaign.endDate).toISOString().split('T')[0] : ''}
+                      min={editCampaign.startDate ? new Date(editCampaign.startDate).toISOString().split('T')[0] : undefined}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setEditCampaign({
+                          ...editCampaign,
+                          endDate: e.target.value ? new Date(e.target.value).toISOString() : null,
+                        })
+                      }
+                      className={cn(
+                        "pl-10",
+                        !editCampaign.endDate && "text-muted-foreground"
+                      )}
+                    />
+                    <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  </div>
+                </div>
+              </div>
+              <Button
+                onClick={handleEditCampaign}
+                className="w-full"
+                disabled={editCampaignMutation.isPending}
+              >
+                {editCampaignMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Save Changes
               </Button>
             </div>
           </DialogContent>
@@ -251,13 +491,11 @@ export default function CampaignsPage() {
               <Card className="relative overflow-hidden">
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
-                    <div>
+                    <div className="min-h-[60px]">
                       <CardTitle>{campaign.name}</CardTitle>
-                      {campaign.description && (
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {campaign.description}
-                        </p>
-                      )}
+                      <p className="text-sm text-muted-foreground mt-1 min-h-[20px]">
+                        {campaign.description || "No description provided"}
+                      </p>
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -273,6 +511,14 @@ export default function CampaignsPage() {
                           }}
                         >
                           View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.preventDefault()
+                            handleEditClick(campaign)
+                          }}
+                        >
+                          Edit Campaign
                         </DropdownMenuItem>
                         {campaign.status === CampaignStatus.ACTIVE ? (
                           <DropdownMenuItem
