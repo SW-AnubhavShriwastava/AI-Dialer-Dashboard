@@ -5,7 +5,8 @@ import { Phone, Users, Calendar, BarChart } from 'lucide-react'
 
 export default function DashboardPage() {
   return (
-    <div className="space-y-6">
+    <div className="p-4">
+      <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -57,29 +58,29 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 mt-4">
         <Card className="col-span-4">
           <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <div className="h-2 w-2 rounded-full bg-green-500" />
+              <div className="flex items-center">
+                <div className="mr-4 h-2 w-2 rounded-full bg-green-500" />
                 <div>
                   <p className="text-sm font-medium">Campaign "Sales Outreach" completed</p>
                   <p className="text-xs text-muted-foreground">2 hours ago</p>
                 </div>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="h-2 w-2 rounded-full bg-blue-500" />
+              <div className="flex items-center">
+                <div className="mr-4 h-2 w-2 rounded-full bg-blue-500" />
                 <div>
                   <p className="text-sm font-medium">New contact list imported</p>
                   <p className="text-xs text-muted-foreground">5 hours ago</p>
                 </div>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="h-2 w-2 rounded-full bg-yellow-500" />
+              <div className="flex items-center">
+                <div className="mr-4 h-2 w-2 rounded-full bg-yellow-500" />
                 <div>
                   <p className="text-sm font-medium">Campaign "Follow-up" scheduled</p>
                   <p className="text-xs text-muted-foreground">1 day ago</p>
@@ -99,21 +100,21 @@ export default function DashboardPage() {
                   <p className="text-sm font-medium">John Doe</p>
                   <p className="text-xs text-muted-foreground">Sales Outreach Campaign</p>
                 </div>
-                <div className="text-sm text-muted-foreground">10:00 AM</div>
+                <p className="text-sm">10:00 AM</p>
               </div>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">Jane Smith</p>
                   <p className="text-xs text-muted-foreground">Follow-up Campaign</p>
                 </div>
-                <div className="text-sm text-muted-foreground">2:30 PM</div>
+                <p className="text-sm">2:30 PM</p>
               </div>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">Mike Johnson</p>
                   <p className="text-xs text-muted-foreground">Sales Outreach Campaign</p>
                 </div>
-                <div className="text-sm text-muted-foreground">4:00 PM</div>
+                <p className="text-sm">4:00 PM</p>
               </div>
             </div>
           </CardContent>

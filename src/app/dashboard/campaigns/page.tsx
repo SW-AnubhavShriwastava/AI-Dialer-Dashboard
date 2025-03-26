@@ -26,7 +26,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CampaignStatus } from '@/types/prisma'
-import { useToast } from '@/components/ui/use-toast'
+import { toast } from 'sonner'
 import { cn } from "@/lib/utils"
 import { CalendarIcon } from "lucide-react"
 
@@ -75,7 +75,6 @@ export default function CampaignsPage() {
     startDate: null,
     endDate: null,
   })
-  const { toast } = useToast()
 
   // Fetch campaigns
   const { data: campaigns, isLoading } = useQuery<Campaign[]>({
@@ -102,16 +101,13 @@ export default function CampaignsPage() {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
       setIsCreateDialogOpen(false)
       setNewCampaign({ name: '', description: '', startDate: null, endDate: null })
-      toast({
-        title: 'Success',
-        description: 'Campaign created successfully',
+      toast.success('Campaign Created', {
+        description: 'Your new campaign has been created successfully.'
       })
     },
     onError: () => {
-      toast({
-        title: 'Error',
-        description: 'Failed to create campaign',
-        variant: 'destructive',
+      toast.error('Creation Failed', {
+        description: 'There was an error creating your campaign. Please try again.'
       })
     },
   })
@@ -136,16 +132,13 @@ export default function CampaignsPage() {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
       setIsEditDialogOpen(false)
       setEditCampaign({ id: '', name: '', description: '', startDate: null, endDate: null })
-      toast({
-        title: 'Success',
-        description: 'Campaign updated successfully',
+      toast.success('Campaign Updated', {
+        description: 'Your campaign has been updated successfully.'
       })
     },
     onError: () => {
-      toast({
-        title: 'Error',
-        description: 'Failed to update campaign',
-        variant: 'destructive',
+      toast.error('Update Failed', {
+        description: 'There was an error updating your campaign. Please try again.'
       })
     },
   })
@@ -160,16 +153,13 @@ export default function CampaignsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
-      toast({
-        title: 'Success',
-        description: 'Campaign deleted successfully',
+      toast.success('Campaign Deleted', {
+        description: 'The campaign has been deleted successfully.'
       })
     },
     onError: () => {
-      toast({
-        title: 'Error',
-        description: 'Failed to delete campaign',
-        variant: 'destructive',
+      toast.error('Deletion Failed', {
+        description: 'There was an error deleting the campaign. Please try again.'
       })
     },
   })
@@ -190,28 +180,24 @@ export default function CampaignsPage() {
       })
       if (!response.ok) throw new Error('Failed to update campaign status')
     },
-    onSuccess: () => {
+    onSuccess: (_, { status }) => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
-      toast({
-        title: 'Success',
-        description: 'Campaign status updated successfully',
+      toast.success('Status Updated', {
+        description: `Campaign has been ${status.toLowerCase()} successfully.`
       })
     },
     onError: () => {
-      toast({
-        title: 'Error',
-        description: 'Failed to update campaign status',
-        variant: 'destructive',
+      toast.error('Status Update Failed', {
+        description: 'There was an error updating the campaign status. Please try again.'
       })
     },
   })
 
   const handleCreateCampaign = () => {
+    // Validate required fields
     if (!newCampaign.name.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Campaign name is required',
-        variant: 'destructive',
+      toast.error('Missing Required Field', {
+        description: 'Please enter a campaign name to continue.'
       })
       return
     }
@@ -221,10 +207,8 @@ export default function CampaignsPage() {
       const startDate = new Date(newCampaign.startDate)
       const endDate = new Date(newCampaign.endDate)
       if (endDate < startDate) {
-        toast({
-          title: 'Error',
-          description: 'End date must be after start date',
-          variant: 'destructive',
+        toast.error('Invalid Date Range', {
+          description: 'End date must be after the start date.'
         })
         return
       }
@@ -234,11 +218,10 @@ export default function CampaignsPage() {
   }
 
   const handleEditCampaign = () => {
+    // Validate required fields
     if (!editCampaign.name.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Campaign name is required',
-        variant: 'destructive',
+      toast.error('Missing Required Field', {
+        description: 'Please enter a campaign name to continue.'
       })
       return
     }
@@ -248,10 +231,8 @@ export default function CampaignsPage() {
       const startDate = new Date(editCampaign.startDate)
       const endDate = new Date(editCampaign.endDate)
       if (endDate < startDate) {
-        toast({
-          title: 'Error',
-          description: 'End date must be after start date',
-          variant: 'destructive',
+        toast.error('Invalid Date Range', {
+          description: 'End date must be after the start date.'
         })
         return
       }
