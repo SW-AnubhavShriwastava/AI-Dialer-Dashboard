@@ -8,7 +8,7 @@ import { z } from 'zod'
 const updateContactSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   phone: z.string().min(1, 'Phone number is required'),
-  email: z.string().email().optional().nullable(),
+  email: z.string().email().optional().or(z.literal('')).nullable(),
   tags: z.array(z.string()).optional(),
   customFields: z.record(z.any()).optional(),
 })

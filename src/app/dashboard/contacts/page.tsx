@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { Loader2, Plus, Search, Upload, Download, AlertCircle } from 'lucide-react'
+import { Loader2, Plus, Search, Upload, Download, AlertCircle, Pencil, Trash2 } from 'lucide-react'
 import {
   Form,
   FormControl,
@@ -571,15 +571,15 @@ export default function ContactsPage() {
       </div>
 
       <div className="rounded-md border bg-white shadow-sm">
-        <Table>
+        <Table className="border rounded-md">
           <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Tags</TableHead>
-              <TableHead>Created At</TableHead>
-              <TableHead>Actions</TableHead>
+            <TableRow className="bg-muted/50">
+              <TableHead className="font-medium py-4 px-6">Name</TableHead>
+              <TableHead className="font-medium py-4 px-6">Phone</TableHead>
+              <TableHead className="font-medium py-4 px-6">Email</TableHead>
+              <TableHead className="font-medium py-4 px-6">Tags</TableHead>
+              <TableHead className="font-medium py-4 px-6">Created At</TableHead>
+              <TableHead className="font-medium py-4 px-6 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -603,11 +603,11 @@ export default function ContactsPage() {
               </TableRow>
             ) : (
               data?.contacts.map((contact: Contact) => (
-                <TableRow key={contact.id}>
-                  <TableCell>{contact.name}</TableCell>
-                  <TableCell>{contact.phone}</TableCell>
-                  <TableCell>{contact.email}</TableCell>
-                  <TableCell>
+                <TableRow key={contact.id} className="hover:bg-muted/30">
+                  <TableCell className="py-4 px-6 font-medium">{contact.name}</TableCell>
+                  <TableCell className="py-4 px-6">{contact.phone}</TableCell>
+                  <TableCell className="py-4 px-6">{contact.email}</TableCell>
+                  <TableCell className="py-4 px-6">
                     <div className="flex flex-wrap gap-1">
                       {contact.tags.map((tag) => (
                         <Badge key={tag} variant="secondary">
@@ -616,14 +616,15 @@ export default function ContactsPage() {
                       ))}
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="py-4 px-6">
                     {new Date(contact.createdAt).toLocaleDateString()}
                   </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
+                  <TableCell className="py-4 px-6 text-right">
+                    <div className="flex items-center justify-end gap-2">
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="icon"
+                        className="h-8 w-8"
                         onClick={() => {
                           setSelectedContact(contact)
                           setIsEditDialogOpen(true)
@@ -631,20 +632,25 @@ export default function ContactsPage() {
                         disabled={editContactMutation.isPending || deleteContactMutation.isPending}
                       >
                         {editContactMutation.isPending && selectedContact?.id === contact.id ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : null}
-                        Edit
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Pencil className="h-4 w-4" />
+                        )}
+                        <span className="sr-only">Edit</span>
                       </Button>
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
                         onClick={() => setContactToDelete(contact)}
                         disabled={editContactMutation.isPending || deleteContactMutation.isPending}
                       >
                         {deleteContactMutation.isPending && contactToDelete?.id === contact.id ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : null}
-                        Delete
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                        <span className="sr-only">Delete</span>
                       </Button>
                     </div>
                   </TableCell>
