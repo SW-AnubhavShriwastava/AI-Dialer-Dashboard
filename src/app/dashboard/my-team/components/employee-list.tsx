@@ -96,7 +96,11 @@ interface Employee {
   }
 }
 
-export function EmployeeList() {
+interface EmployeeListProps {
+  onAddEmployee?: () => void;
+}
+
+export function EmployeeList({ onAddEmployee }: EmployeeListProps) {
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null)
   const queryClient = useQueryClient()
 
@@ -154,7 +158,7 @@ export function EmployeeList() {
             Get started by adding your first team member. They'll be able to help manage contacts,
             campaigns, and more.
           </p>
-          <Button onClick={() => window.document.dispatchEvent(new CustomEvent('add-employee'))}>
+          <Button onClick={() => onAddEmployee?.()}>
             <UserPlus className="mr-2 h-4 w-4" />
             Add First Employee
           </Button>

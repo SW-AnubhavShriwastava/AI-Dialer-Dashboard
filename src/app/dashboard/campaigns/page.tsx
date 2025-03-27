@@ -25,7 +25,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { CampaignStatus } from '@/types/prisma'
+import { CampaignStatus, UserRole } from '@prisma/client'
 import { toast } from 'sonner'
 import { cn } from "@/lib/utils"
 import { CalendarIcon } from "lucide-react"
@@ -47,7 +47,7 @@ interface AppUser {
   id: string
   email: string
   name: string
-  isAdmin: boolean
+  role: UserRole
   employeeProfile?: {
     id: string
     permissions: {
@@ -145,7 +145,7 @@ export default function CampaignsPage() {
       }
       return response.json()
     },
-    enabled: user?.isAdmin === true,
+    enabled: user?.role === UserRole.ADMIN,
   })
 
   // Fetch campaigns
@@ -168,7 +168,7 @@ export default function CampaignsPage() {
   })
 
   // Check if user has campaign creation permission
-  const canCreateCampaign = user?.isAdmin || 
+  const canCreateCampaign = user?.role === UserRole.ADMIN || 
     (user?.employeeProfile?.permissions?.campaigns?.create === true)
 
   // Create campaign mutation
