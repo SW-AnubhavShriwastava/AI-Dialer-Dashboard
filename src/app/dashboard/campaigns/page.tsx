@@ -30,6 +30,26 @@ import { toast } from 'sonner'
 import { cn } from "@/lib/utils"
 import { CalendarIcon } from "lucide-react"
 import { NoAccess } from './components/no-access'
+import { useSession } from 'next-auth/react'
+import type { Session } from 'next-auth'
+
+interface AppUser {
+  id: string
+  email: string
+  name: string
+  isAdmin: boolean
+  employeeProfile?: {
+    id: string
+    permissions: {
+      campaigns?: {
+        view: boolean
+        create: boolean
+        edit: boolean
+        delete: boolean
+      }
+    }
+  }
+}
 
 interface Campaign {
   id: string
@@ -59,6 +79,8 @@ interface EditCampaignData {
 }
 
 export default function CampaignsPage() {
+  const { data: session } = useSession()
+  const user = session?.user as AppUser | undefined
   const router = useRouter()
   const queryClient = useQueryClient()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -95,6 +117,10 @@ export default function CampaignsPage() {
     refetchOnWindowFocus: false,
     refetchInterval: false,
   })
+
+  // Check if user has campaign creation permission
+  const canCreateCampaign = user?.isAdmin || 
+    (user?.employeeProfile?.permissions?.campaigns?.create === true)
 
   // Create campaign mutation
   const createCampaignMutation = useMutation({
@@ -308,99 +334,101 @@ export default function CampaignsPage() {
             Manage your campaigns and track their progress.
           </p>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Campaign
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Create New Campaign</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  value={newCampaign.name}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    setNewCampaign({ ...newCampaign, name: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={newCampaign.description}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                    setNewCampaign({
-                      ...newCampaign,
-                      description: e.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="start-date">Start Date</Label>
-                  <div className="relative">
-                    <Input
-                      id="start-date"
-                      type="date"
-                      value={newCampaign.startDate ? new Date(newCampaign.startDate).toISOString().split('T')[0] : ''}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        setNewCampaign({
-                          ...newCampaign,
-                          startDate: e.target.value ? new Date(e.target.value).toISOString() : null,
-                        })
-                      }
-                      className={cn(
-                        "pl-10",
-                        !newCampaign.startDate && "text-muted-foreground"
-                      )}
-                    />
-                    <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="end-date">End Date</Label>
-                  <div className="relative">
-                    <Input
-                      id="end-date"
-                      type="date"
-                      value={newCampaign.endDate ? new Date(newCampaign.endDate).toISOString().split('T')[0] : ''}
-                      min={newCampaign.startDate ? new Date(newCampaign.startDate).toISOString().split('T')[0] : undefined}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        setNewCampaign({
-                          ...newCampaign,
-                          endDate: e.target.value ? new Date(e.target.value).toISOString() : null,
-                        })
-                      }
-                      className={cn(
-                        "pl-10",
-                        !newCampaign.endDate && "text-muted-foreground"
-                      )}
-                    />
-                    <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  </div>
-                </div>
-              </div>
-              <Button
-                onClick={handleCreateCampaign}
-                className="w-full"
-                disabled={createCampaignMutation.isPending}
-              >
-                {createCampaignMutation.isPending && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                Create
+        {canCreateCampaign && (
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Campaign
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Create New Campaign</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Name</Label>
+                  <Input
+                    id="name"
+                    value={newCampaign.name}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setNewCampaign({ ...newCampaign, name: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={newCampaign.description}
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                      setNewCampaign({
+                        ...newCampaign,
+                        description: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="start-date">Start Date</Label>
+                    <div className="relative">
+                      <Input
+                        id="start-date"
+                        type="date"
+                        value={newCampaign.startDate ? new Date(newCampaign.startDate).toISOString().split('T')[0] : ''}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                          setNewCampaign({
+                            ...newCampaign,
+                            startDate: e.target.value ? new Date(e.target.value).toISOString() : null,
+                          })
+                        }
+                        className={cn(
+                          "pl-10",
+                          !newCampaign.startDate && "text-muted-foreground"
+                        )}
+                      />
+                      <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="end-date">End Date</Label>
+                    <div className="relative">
+                      <Input
+                        id="end-date"
+                        type="date"
+                        value={newCampaign.endDate ? new Date(newCampaign.endDate).toISOString().split('T')[0] : ''}
+                        min={newCampaign.startDate ? new Date(newCampaign.startDate).toISOString().split('T')[0] : undefined}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                          setNewCampaign({
+                            ...newCampaign,
+                            endDate: e.target.value ? new Date(e.target.value).toISOString() : null,
+                          })
+                        }
+                        className={cn(
+                          "pl-10",
+                          !newCampaign.endDate && "text-muted-foreground"
+                        )}
+                      />
+                      <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  onClick={handleCreateCampaign}
+                  className="w-full"
+                  disabled={createCampaignMutation.isPending}
+                >
+                  {createCampaignMutation.isPending && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Create
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -499,12 +527,16 @@ export default function CampaignsPage() {
             </div>
             <h2 className="mt-6 text-xl font-semibold">No campaigns created</h2>
             <p className="mt-2 text-center text-sm text-muted-foreground">
-              You haven't created any campaigns yet. Start by creating your first campaign.
+              {canCreateCampaign 
+                ? "You haven't created any campaigns yet. Start by creating your first campaign."
+                : "No campaigns available. Contact your administrator to create campaigns."}
             </p>
-            <Button onClick={() => setIsCreateDialogOpen(true)} className="mt-6">
-              <Plus className="mr-2 h-4 w-4" />
-              Create Campaign
-            </Button>
+            {canCreateCampaign && (
+              <Button onClick={() => setIsCreateDialogOpen(true)} className="mt-6">
+                <Plus className="mr-2 h-4 w-4" />
+                Create Campaign
+              </Button>
+            )}
           </div>
         ) : (
           campaigns?.map((campaign) => (
