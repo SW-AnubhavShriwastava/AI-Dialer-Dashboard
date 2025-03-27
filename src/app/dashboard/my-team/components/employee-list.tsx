@@ -32,6 +32,33 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
+import { EditEmployeeDialog } from './edit-employee-dialog'
+import { DeleteEmployeeDialog } from './delete-employee-dialog'
+
+interface EmployeePermissions {
+  contacts: {
+    view: boolean
+    create: boolean
+    edit: boolean
+    delete: boolean
+    import: boolean
+    export: boolean
+    accessType: 'ALL' | 'ASSIGNED'
+  }
+  campaigns: {
+    view: boolean
+    create: boolean
+    edit: boolean
+    delete: boolean
+  }
+  callLogs: {
+    view: boolean
+    download: boolean
+  }
+  aiSummary: {
+    view: boolean
+  }
+}
 
 interface Employee {
   id: string
@@ -207,17 +234,32 @@ export function EmployeeList() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleEdit(employee)}>
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        className="text-red-600"
-                        onClick={() => setEmployeeToDelete(employee)}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
-                      </DropdownMenuItem>
+                      <EditEmployeeDialog
+                        employee={{
+                          id: employee.id,
+                          name: employee.user.name,
+                          email: employee.user.email,
+                          permissions: employee.permissions,
+                        }}
+                        trigger={
+                          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                        }
+                      />
+                      <DeleteEmployeeDialog
+                        employeeId={employee.id}
+                        trigger={
+                          <DropdownMenuItem
+                            onSelect={(e) => e.preventDefault()}
+                            className="text-red-600"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        }
+                      />
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>

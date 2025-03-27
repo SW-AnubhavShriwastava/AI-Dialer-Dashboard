@@ -29,6 +29,7 @@ import { CampaignStatus } from '@/types/prisma'
 import { toast } from 'sonner'
 import { cn } from "@/lib/utils"
 import { CalendarIcon } from "lucide-react"
+import { NoAccess } from './components/no-access'
 
 interface Campaign {
   id: string
@@ -77,13 +78,22 @@ export default function CampaignsPage() {
   })
 
   // Fetch campaigns
-  const { data: campaigns, isLoading } = useQuery<Campaign[]>({
+  const { data: campaigns, isLoading, error } = useQuery<Campaign[]>({
     queryKey: ['campaigns'],
     queryFn: async () => {
       const response = await fetch('/api/campaigns')
-      if (!response.ok) throw new Error('Failed to fetch campaigns')
+      if (!response.ok) {
+        const error = await response.json()
+        if (response.status === 403) {
+          throw new Error('No permission to view campaigns')
+        }
+        throw new Error(error.error || 'Failed to fetch campaigns')
+      }
       return response.json()
     },
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
   })
 
   // Create campaign mutation
@@ -94,7 +104,10 @@ export default function CampaignsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(campaign),
       })
-      if (!response.ok) throw new Error('Failed to create campaign')
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to create campaign')
+      }
       return response.json()
     },
     onSuccess: () => {
@@ -105,9 +118,9 @@ export default function CampaignsPage() {
         description: 'Your new campaign has been created successfully.'
       })
     },
-    onError: () => {
+    onError: (error) => {
       toast.error('Creation Failed', {
-        description: 'There was an error creating your campaign. Please try again.'
+        description: error instanceof Error ? error.message : 'There was an error creating your campaign. Please try again.'
       })
     },
   })
@@ -125,7 +138,10 @@ export default function CampaignsPage() {
           endDate: campaign.endDate,
         }),
       })
-      if (!response.ok) throw new Error('Failed to update campaign')
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update campaign')
+      }
       return response.json()
     },
     onSuccess: () => {
@@ -136,9 +152,9 @@ export default function CampaignsPage() {
         description: 'Your campaign has been updated successfully.'
       })
     },
-    onError: () => {
+    onError: (error) => {
       toast.error('Update Failed', {
-        description: 'There was an error updating your campaign. Please try again.'
+        description: error instanceof Error ? error.message : 'There was an error updating your campaign. Please try again.'
       })
     },
   })
@@ -149,7 +165,10 @@ export default function CampaignsPage() {
       const response = await fetch(`/api/campaigns/${campaignId}`, {
         method: 'DELETE',
       })
-      if (!response.ok) throw new Error('Failed to delete campaign')
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete campaign')
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
@@ -157,9 +176,9 @@ export default function CampaignsPage() {
         description: 'The campaign has been deleted successfully.'
       })
     },
-    onError: () => {
+    onError: (error) => {
       toast.error('Deletion Failed', {
-        description: 'There was an error deleting the campaign. Please try again.'
+        description: error instanceof Error ? error.message : 'There was an error deleting the campaign. Please try again.'
       })
     },
   })
@@ -178,7 +197,10 @@ export default function CampaignsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       })
-      if (!response.ok) throw new Error('Failed to update campaign status')
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update campaign status')
+      }
     },
     onSuccess: (_, { status }) => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
@@ -186,9 +208,9 @@ export default function CampaignsPage() {
         description: `Campaign has been ${status.toLowerCase()} successfully.`
       })
     },
-    onError: () => {
+    onError: (error) => {
       toast.error('Status Update Failed', {
-        description: 'There was an error updating the campaign status. Please try again.'
+        description: error instanceof Error ? error.message : 'There was an error updating the campaign status. Please try again.'
       })
     },
   })
@@ -260,10 +282,32 @@ export default function CampaignsPage() {
     )
   }
 
+  // Show no access component if permission error
+  if (error instanceof Error && error.message === 'No permission to view campaigns') {
+    return <NoAccess />
+  }
+
+  // Show error state for other errors
+  if (error) {
+    return (
+      <div className="flex h-[50vh] flex-col items-center justify-center text-center">
+        <h2 className="text-xl font-semibold text-red-600">Something went wrong</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {error instanceof Error ? error.message : 'Failed to load campaigns'}
+        </p>
+      </div>
+    )
+  }
+
   return (
-    <div>
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Campaigns</h1>
+    <div className="space-y-6 p-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Campaigns</h1>
+          <p className="text-sm text-muted-foreground">
+            Manage your campaigns and track their progress.
+          </p>
+        </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -357,95 +401,95 @@ export default function CampaignsPage() {
             </div>
           </DialogContent>
         </Dialog>
-
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Edit Campaign</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-name">Name</Label>
-                <Input
-                  id="edit-name"
-                  value={editCampaign.name}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    setEditCampaign({ ...editCampaign, name: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-description">Description</Label>
-                <Textarea
-                  id="edit-description"
-                  value={editCampaign.description}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                    setEditCampaign({
-                      ...editCampaign,
-                      description: e.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-start-date">Start Date</Label>
-                  <div className="relative">
-                    <Input
-                      id="edit-start-date"
-                      type="date"
-                      value={editCampaign.startDate ? new Date(editCampaign.startDate).toISOString().split('T')[0] : ''}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        setEditCampaign({
-                          ...editCampaign,
-                          startDate: e.target.value ? new Date(e.target.value).toISOString() : null,
-                        })
-                      }
-                      className={cn(
-                        "pl-10",
-                        !editCampaign.startDate && "text-muted-foreground"
-                      )}
-                    />
-                    <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-end-date">End Date</Label>
-                  <div className="relative">
-                    <Input
-                      id="edit-end-date"
-                      type="date"
-                      value={editCampaign.endDate ? new Date(editCampaign.endDate).toISOString().split('T')[0] : ''}
-                      min={editCampaign.startDate ? new Date(editCampaign.startDate).toISOString().split('T')[0] : undefined}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        setEditCampaign({
-                          ...editCampaign,
-                          endDate: e.target.value ? new Date(e.target.value).toISOString() : null,
-                        })
-                      }
-                      className={cn(
-                        "pl-10",
-                        !editCampaign.endDate && "text-muted-foreground"
-                      )}
-                    />
-                    <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  </div>
-                </div>
-              </div>
-              <Button
-                onClick={handleEditCampaign}
-                className="w-full"
-                disabled={editCampaignMutation.isPending}
-              >
-                {editCampaignMutation.isPending && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                Save Changes
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Campaign</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Name</Label>
+              <Input
+                id="edit-name"
+                value={editCampaign.name}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setEditCampaign({ ...editCampaign, name: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <Textarea
+                id="edit-description"
+                value={editCampaign.description}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setEditCampaign({
+                    ...editCampaign,
+                    description: e.target.value,
+                  })
+                }
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-start-date">Start Date</Label>
+                <div className="relative">
+                  <Input
+                    id="edit-start-date"
+                    type="date"
+                    value={editCampaign.startDate ? new Date(editCampaign.startDate).toISOString().split('T')[0] : ''}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setEditCampaign({
+                        ...editCampaign,
+                        startDate: e.target.value ? new Date(e.target.value).toISOString() : null,
+                      })
+                    }
+                    className={cn(
+                      "pl-10",
+                      !editCampaign.startDate && "text-muted-foreground"
+                    )}
+                  />
+                  <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-end-date">End Date</Label>
+                <div className="relative">
+                  <Input
+                    id="edit-end-date"
+                    type="date"
+                    value={editCampaign.endDate ? new Date(editCampaign.endDate).toISOString().split('T')[0] : ''}
+                    min={editCampaign.startDate ? new Date(editCampaign.startDate).toISOString().split('T')[0] : undefined}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setEditCampaign({
+                        ...editCampaign,
+                        endDate: e.target.value ? new Date(e.target.value).toISOString() : null,
+                      })
+                    }
+                    className={cn(
+                      "pl-10",
+                      !editCampaign.endDate && "text-muted-foreground"
+                    )}
+                  />
+                  <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                </div>
+              </div>
+            </div>
+            <Button
+              onClick={handleEditCampaign}
+              className="w-full"
+              disabled={editCampaignMutation.isPending}
+            >
+              {editCampaignMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {!campaigns?.length ? (
