@@ -31,10 +31,10 @@ model User {
 
   // Relations
   adminSettings AdminSettings?
-  employees     Employee[]
+  adminEmployees Employee[] @relation("AdminEmployees")
+  employeeProfile Employee? @relation("EmployeeProfile")
   campaigns     Campaign[]
   contacts      Contact[]
-  employeeAccess EmployeeAccess[]
 
   @@schema("dashboard")
   @@map("users")
@@ -58,12 +58,14 @@ model AdminSettings {
 model Employee {
   id          String    @id @default(cuid())
   adminId     String    @map("admin_id")
-  admin       User      @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  userId      String    @unique @map("user_id")
   permissions Json      @default("{}")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
   // Relations
+  admin       User      @relation("AdminEmployees", fields: [adminId], references: [id], onDelete: Cascade)
+  user        User      @relation("EmployeeProfile", fields: [userId], references: [id], onDelete: Cascade)
   campaigns   CampaignEmployee[]
 
   @@schema("dashboard")
@@ -89,7 +91,6 @@ model Campaign {
   contacts    CampaignContact[]
   callLogs    CallLog[]
   appointments Appointment[]
-  employeeAccess EmployeeAccess[]
 
   @@schema("dashboard")
   @@map("campaigns")
@@ -230,20 +231,4 @@ enum AppointmentStatus {
   NO_SHOW
 
   @@schema("dashboard")
-}
-
-model EmployeeAccess {
-  id            String   @id @default(cuid())
-  employeeId    String   @map("employee_id")
-  campaignId    String   @map("campaign_id")
-  permissions   Json
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  employee      User     @relation(fields: [employeeId], references: [id])
-  campaign      Campaign @relation(fields: [campaignId], references: [id])
-
-  @@schema("dashboard")
-  @@map("employee_access")
 }

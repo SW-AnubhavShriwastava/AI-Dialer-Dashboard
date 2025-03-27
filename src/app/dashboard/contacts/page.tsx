@@ -43,6 +43,7 @@ import {
 } from '@/components/ui/form'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { usePermissions } from '@/hooks/use-permissions'
 
 interface Contact {
   id: string
@@ -97,6 +98,7 @@ const tagOptions = [
 ]
 
 export default function ContactsPage() {
+  const permissions = usePermissions()
   const [searchInput, setSearchInput] = useState('')
   const search = useDebounce(searchInput, 500)
   const [selectedTagsInput, setSelectedTagsInput] = useState<string[]>([])
@@ -313,227 +315,233 @@ export default function ContactsPage() {
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-3xl font-bold">Contacts</h1>
         <div className="flex items-center gap-4">
-          <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" disabled={isLoading}>
-                <Upload className="mr-2 h-4 w-4" />
-                {isLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  'Import'
-                )}
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Import Contacts</DialogTitle>
-                <DialogDescription>
-                  Upload your contacts from a CSV or Excel file. Make sure your file follows the required format.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4">
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>File Requirements</AlertTitle>
-                  <AlertDescription>
-                    <ul className="list-disc pl-4 mt-2 space-y-1">
-                      <li>Required columns: name, phone</li>
-                      <li>Optional columns: email, tags</li>
-                      <li>Maximum file size: 5MB</li>
-                      <li>Supported formats: .xlsx, .xls, .csv</li>
-                    </ul>
-                  </AlertDescription>
-                </Alert>
-                <div className="grid gap-2">
-                  <Input
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      if (file) {
-                        if (file.size > 5 * 1024 * 1024) {
-                          toast.error('File size must be less than 5MB')
-                          e.target.value = ''
-                          return
+          {permissions.contacts.import && (
+            <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" disabled={isLoading}>
+                  <Upload className="mr-2 h-4 w-4" />
+                  {isLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    'Import'
+                  )}
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Import Contacts</DialogTitle>
+                  <DialogDescription>
+                    Upload your contacts from a CSV or Excel file. Make sure your file follows the required format.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4">
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>File Requirements</AlertTitle>
+                    <AlertDescription>
+                      <ul className="list-disc pl-4 mt-2 space-y-1">
+                        <li>Required columns: name, phone</li>
+                        <li>Optional columns: email, tags</li>
+                        <li>Maximum file size: 5MB</li>
+                        <li>Supported formats: .xlsx, .xls, .csv</li>
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
+                  <div className="grid gap-2">
+                    <Input
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          if (file.size > 5 * 1024 * 1024) {
+                            toast.error('File size must be less than 5MB')
+                            e.target.value = ''
+                            return
+                          }
+                          if (!file.name.match(/\.(xlsx|xls|csv)$/)) {
+                            toast.error('Only Excel and CSV files are allowed')
+                            e.target.value = ''
+                            return
+                          }
+                          setImportProgress(0)
+                          importContactsMutation.mutate(file)
                         }
-                        if (!file.name.match(/\.(xlsx|xls|csv)$/)) {
-                          toast.error('Only Excel and CSV files are allowed')
-                          e.target.value = ''
-                          return
-                        }
-                        setImportProgress(0)
-                        importContactsMutation.mutate(file)
-                      }
-                    }}
-                    disabled={importContactsMutation.isPending}
-                  />
-                  {importContactsMutation.isPending && (
-                    <div className="space-y-2">
-                      <Progress value={importProgress} className="w-full" />
-                      <div className="flex items-center justify-center text-sm text-muted-foreground">
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Importing contacts...
+                      }}
+                      disabled={importContactsMutation.isPending}
+                    />
+                    {importContactsMutation.isPending && (
+                      <div className="space-y-2">
+                        <Progress value={importProgress} className="w-full" />
+                        <div className="flex items-center justify-center text-sm text-muted-foreground">
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Importing contacts...
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  {importContactsMutation.isError && (
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>Import Failed</AlertTitle>
-                      <AlertDescription>
-                        {importContactsMutation.error instanceof Error
-                          ? importContactsMutation.error.message
-                          : 'Failed to import contacts'}
-                      </AlertDescription>
-                    </Alert>
-                  )}
+                    )}
+                    {importContactsMutation.isError && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>Import Failed</AlertTitle>
+                        <AlertDescription>
+                          {importContactsMutation.error instanceof Error
+                            ? importContactsMutation.error.message
+                            : 'Failed to import contacts'}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsImportDialogOpen(false)}
+                      disabled={importContactsMutation.isPending}
+                    >
+                      Close
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex justify-end">
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsImportDialogOpen(false)}
-                    disabled={importContactsMutation.isPending}
+              </DialogContent>
+            </Dialog>
+          )}
+          {permissions.contacts.export && (
+            <Button
+              variant="outline"
+              onClick={() => exportContactsMutation.mutate()}
+              disabled={exportContactsMutation.isPending || isLoading || !data?.contacts.length}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {exportContactsMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                'Export'
+              )}
+            </Button>
+          )}
+          {permissions.contacts.create && (
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button disabled={isLoading}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  {isLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    'Add Contact'
+                  )}
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Contact</DialogTitle>
+                </DialogHeader>
+                <Form {...addForm}>
+                  <form
+                    onSubmit={addForm.handleSubmit((values) =>
+                      addContactMutation.mutate(values)
+                    )}
+                    className="grid gap-4"
                   >
-                    Close
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-          <Button
-            variant="outline"
-            onClick={() => exportContactsMutation.mutate()}
-            disabled={exportContactsMutation.isPending || isLoading || !data?.contacts.length}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            {exportContactsMutation.isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              'Export'
-            )}
-          </Button>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button disabled={isLoading}>
-                <Plus className="mr-2 h-4 w-4" />
-                {isLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  'Add Contact'
-                )}
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Contact</DialogTitle>
-              </DialogHeader>
-              <Form {...addForm}>
-                <form
-                  onSubmit={addForm.handleSubmit((values) =>
-                    addContactMutation.mutate(values)
-                  )}
-                  className="grid gap-4"
-                >
-                  <FormField
-                    control={addForm.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Name</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Enter name"
-                            {...field}
-                            disabled={addContactMutation.isPending}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={addForm.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Phone</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Enter phone number"
-                            {...field}
-                            disabled={addContactMutation.isPending}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={addForm.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="email"
-                            placeholder="Enter email"
-                            {...field}
-                            disabled={addContactMutation.isPending}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={addForm.control}
-                    name="tags"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tags</FormLabel>
-                        <Select
-                          value={field.value?.join(',')}
-                          onValueChange={(value) => field.onChange(value ? value.split(',') : [])}
-                          disabled={addContactMutation.isPending}
-                        >
+                    <FormField
+                      control={addForm.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Name</FormLabel>
                           <FormControl>
-                            <SelectTrigger className="bg-white border-input h-10">
-                              <SelectValue placeholder="Select tags" />
-                            </SelectTrigger>
+                            <Input
+                              placeholder="Enter name"
+                              {...field}
+                              disabled={addContactMutation.isPending}
+                            />
                           </FormControl>
-                          <SelectContent className="bg-white border shadow-md">
-                            {tagOptions.map((tag) => (
-                              <SelectItem key={tag.value} value={tag.value} className="hover:bg-accent">
-                                {tag.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={addForm.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Phone</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Enter phone number"
+                              {...field}
+                              disabled={addContactMutation.isPending}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={addForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="email"
+                              placeholder="Enter email"
+                              {...field}
+                              disabled={addContactMutation.isPending}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={addForm.control}
+                      name="tags"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tags</FormLabel>
+                          <Select
+                            value={field.value?.join(',')}
+                            onValueChange={(value) => field.onChange(value ? value.split(',') : [])}
+                            disabled={addContactMutation.isPending}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="bg-white border-input h-10">
+                                <SelectValue placeholder="Select tags" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent className="bg-white border shadow-md">
+                              {tagOptions.map((tag) => (
+                                <SelectItem key={tag.value} value={tag.value} className="hover:bg-accent">
+                                  {tag.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    {addContactMutation.isError && (
+                      <div className="text-sm text-destructive">
+                        {addContactMutation.error instanceof Error
+                          ? addContactMutation.error.message
+                          : 'Failed to add contact'}
+                      </div>
                     )}
-                  />
-                  {addContactMutation.isError && (
-                    <div className="text-sm text-destructive">
-                      {addContactMutation.error instanceof Error
-                        ? addContactMutation.error.message
-                        : 'Failed to add contact'}
-                    </div>
-                  )}
-                  <Button
-                    type="submit"
-                    disabled={addContactMutation.isPending}
-                  >
-                    {addContactMutation.isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : null}
-                    Add Contact
-                  </Button>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
+                    <Button
+                      type="submit"
+                      disabled={addContactMutation.isPending}
+                    >
+                      {addContactMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
+                      Add Contact
+                    </Button>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
 
@@ -579,7 +587,9 @@ export default function ContactsPage() {
               <TableHead className="font-medium py-4 px-6">Email</TableHead>
               <TableHead className="font-medium py-4 px-6">Tags</TableHead>
               <TableHead className="font-medium py-4 px-6">Created At</TableHead>
-              <TableHead className="font-medium py-4 px-6 text-right">Actions</TableHead>
+              {(permissions.contacts.edit || permissions.contacts.delete) && (
+                <TableHead className="font-medium py-4 px-6 text-right">Actions</TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -619,41 +629,47 @@ export default function ContactsPage() {
                   <TableCell className="py-4 px-6">
                     {new Date(contact.createdAt).toLocaleDateString()}
                   </TableCell>
-                  <TableCell className="py-4 px-6 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => {
-                          setSelectedContact(contact)
-                          setIsEditDialogOpen(true)
-                        }}
-                        disabled={editContactMutation.isPending || deleteContactMutation.isPending}
-                      >
-                        {editContactMutation.isPending && selectedContact?.id === contact.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Pencil className="h-4 w-4" />
+                  {(permissions.contacts.edit || permissions.contacts.delete) && (
+                    <TableCell className="py-4 px-6">
+                      <div className="flex items-center justify-end gap-2">
+                        {permissions.contacts.edit && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => {
+                              setSelectedContact(contact)
+                              setIsEditDialogOpen(true)
+                            }}
+                            disabled={editContactMutation.isPending || deleteContactMutation.isPending}
+                          >
+                            {editContactMutation.isPending && selectedContact?.id === contact.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Pencil className="h-4 w-4" />
+                            )}
+                            <span className="sr-only">Edit</span>
+                          </Button>
                         )}
-                        <span className="sr-only">Edit</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
-                        onClick={() => setContactToDelete(contact)}
-                        disabled={editContactMutation.isPending || deleteContactMutation.isPending}
-                      >
-                        {deleteContactMutation.isPending && contactToDelete?.id === contact.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
+                        {permissions.contacts.delete && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
+                            onClick={() => setContactToDelete(contact)}
+                            disabled={editContactMutation.isPending || deleteContactMutation.isPending}
+                          >
+                            {deleteContactMutation.isPending && contactToDelete?.id === contact.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                            <span className="sr-only">Delete</span>
+                          </Button>
                         )}
-                        <span className="sr-only">Delete</span>
-                      </Button>
-                    </div>
-                  </TableCell>
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))
             )}

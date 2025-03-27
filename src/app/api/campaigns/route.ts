@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
-import { CampaignStatus } from '@prisma/client'
+import { CampaignStatus, UserRole } from '@prisma/client'
 
 // Campaign creation schema
 const createCampaignSchema = z.object({
@@ -22,29 +22,84 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const campaigns = await prisma.campaign.findMany({
-      where: {
-        adminId: session.user.id,
-      },
-      include: {
-        admin: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+    let campaigns
+    if (session.user.role === UserRole.ADMIN) {
+      // Admin sees all their campaigns
+      campaigns = await prisma.campaign.findMany({
+        where: {
+          adminId: session.user.id,
+        },
+        include: {
+          admin: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          contacts: {
+            select: {
+              id: true,
+              status: true,
+            },
           },
         },
-        contacts: {
-          select: {
-            id: true,
-            status: true,
+        orderBy: {
+          createdAt: 'desc',
+        },
+      })
+    } else {
+      // Employee sees only assigned campaigns
+      const employee = await prisma.employee.findFirst({
+        where: {
+          user: {
+            id: session.user.id,
           },
         },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    })
+        select: {
+          permissions: true,
+        },
+      })
+
+      if (!employee || !(employee.permissions as any).campaigns.view) {
+        return NextResponse.json(
+          { error: 'No permission to view campaigns' },
+          { status: 403 }
+        )
+      }
+
+      campaigns = await prisma.campaign.findMany({
+        where: {
+          employees: {
+            some: {
+              employee: {
+                user: {
+                  id: session.user.id,
+                },
+              },
+            },
+          },
+        },
+        include: {
+          admin: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          contacts: {
+            select: {
+              id: true,
+              status: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      })
+    }
 
     return NextResponse.json(campaigns)
   } catch (error) {
@@ -63,14 +118,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const validatedData = createCampaignSchema.parse(body)
+    // Only admins can create campaigns
+    if (session.user.role !== UserRole.ADMIN) {
+      return NextResponse.json(
+        { error: 'Only admins can create campaigns' },
+        { status: 403 }
+      )
+    }
+
+    const json = await request.json()
+    const body = createCampaignSchema.parse(json)
 
     const campaign = await prisma.campaign.create({
       data: {
-        ...validatedData,
+        name: body.name,
+        description: body.description,
+        startDate: body.startDate ? new Date(body.startDate) : undefined,
+        endDate: body.endDate ? new Date(body.endDate) : undefined,
+        status: body.status || CampaignStatus.ACTIVE,
+        settings: body.settings || {},
         adminId: session.user.id,
-        status: CampaignStatus.ACTIVE,
       },
       include: {
         admin: {
@@ -83,15 +150,15 @@ export async function POST(request: Request) {
       },
     })
 
-    return NextResponse.json(campaign, { status: 201 })
+    return NextResponse.json(campaign)
   } catch (error) {
+    console.error('Error creating campaign:', error)
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: 'Invalid request data', details: error.errors },
         { status: 400 }
       )
     }
-    console.error('Error creating campaign:', error)
     return NextResponse.json(
       { error: 'Failed to create campaign' },
       { status: 500 }

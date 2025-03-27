@@ -3,7 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import { db } from "@/lib/db"
 import bcrypt, { compare } from "bcrypt"
-import { User } from "@prisma/client"
+import { User, UserRole, UserStatus } from "@prisma/client"
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(db),
@@ -28,11 +28,19 @@ export const authOptions: NextAuthOptions = {
         const user = await db.user.findUnique({
           where: {
             email: credentials.email
+          },
+          include: {
+            employeeProfile: true
           }
         })
 
         if (!user) {
           return null
+        }
+
+        // Check if user is active
+        if (user.status !== UserStatus.ACTIVE) {
+          throw new Error("Account is not active")
         }
 
         const isPasswordValid = await compare(
@@ -49,6 +57,9 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name || "",
           username: user.username,
+          role: user.role,
+          status: user.status,
+          employeeProfile: user.employeeProfile
         }
       }
     })
@@ -60,6 +71,9 @@ export const authOptions: NextAuthOptions = {
         session.user.name = token.name as string
         session.user.email = token.email as string
         session.user.username = token.username as string
+        session.user.role = token.role as UserRole
+        session.user.status = token.status as UserStatus
+        session.user.employeeProfile = token.employeeProfile as any
       }
 
       return session
@@ -69,12 +83,18 @@ export const authOptions: NextAuthOptions = {
         where: {
           email: token.email!,
         },
+        include: {
+          employeeProfile: true
+        }
       })
 
       if (!dbUser) {
         if (user) {
           token.id = user?.id
           token.username = (user as any).username
+          token.role = (user as any).role
+          token.status = (user as any).status
+          token.employeeProfile = (user as any).employeeProfile
         }
         return token
       }
@@ -84,6 +104,9 @@ export const authOptions: NextAuthOptions = {
         name: dbUser.name || "",
         email: dbUser.email,
         username: dbUser.username,
+        role: dbUser.role,
+        status: dbUser.status,
+        employeeProfile: dbUser.employeeProfile
       }
     }
   }
@@ -108,8 +131,8 @@ export async function createUser(data: {
       email: data.email,
       username: data.username,
       password: hashedPassword,
-      role: "ADMIN",
-      status: "ACTIVE",
+      role: UserRole.ADMIN,
+      status: UserStatus.ACTIVE,
       emailVerified: new Date(),
     },
   })
