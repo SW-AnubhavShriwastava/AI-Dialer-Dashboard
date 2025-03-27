@@ -32,6 +32,16 @@ import { CalendarIcon } from "lucide-react"
 import { NoAccess } from './components/no-access'
 import { useSession } from 'next-auth/react'
 import type { Session } from 'next-auth'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface AppUser {
   id: string
@@ -47,6 +57,23 @@ interface AppUser {
         edit: boolean
         delete: boolean
       }
+    }
+  }
+}
+
+interface Employee {
+  id: string
+  user: {
+    id: string
+    name: string
+    email: string
+  }
+  permissions: {
+    campaigns: {
+      view: boolean
+      create: boolean
+      edit: boolean
+      delete: boolean
     }
   }
 }
@@ -68,6 +95,9 @@ interface Campaign {
     successRate: number
     appointmentsScheduled: number
   }
+  employees?: {
+    employeeId: string
+  }[]
 }
 
 interface EditCampaignData {
@@ -76,6 +106,8 @@ interface EditCampaignData {
   description: string
   startDate: string | null
   endDate: string | null
+  employeeAccess: 'NONE' | 'ALL' | 'SELECTED'
+  selectedEmployees: string[]
 }
 
 export default function CampaignsPage() {
@@ -90,6 +122,8 @@ export default function CampaignsPage() {
     description: '',
     startDate: null as string | null,
     endDate: null as string | null,
+    employeeAccess: 'NONE' as 'NONE' | 'ALL' | 'SELECTED',
+    selectedEmployees: [] as string[],
   })
   const [editCampaign, setEditCampaign] = useState<EditCampaignData>({
     id: '',
@@ -97,6 +131,21 @@ export default function CampaignsPage() {
     description: '',
     startDate: null,
     endDate: null,
+    employeeAccess: 'NONE',
+    selectedEmployees: [],
+  })
+
+  // Fetch employees
+  const { data: employees } = useQuery<Employee[]>({
+    queryKey: ['employees'],
+    queryFn: async () => {
+      const response = await fetch('/api/team/employees')
+      if (!response.ok) {
+        throw new Error('Failed to fetch employees')
+      }
+      return response.json()
+    },
+    enabled: user?.isAdmin === true,
   })
 
   // Fetch campaigns
@@ -128,7 +177,14 @@ export default function CampaignsPage() {
       const response = await fetch('/api/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(campaign),
+        body: JSON.stringify({
+          name: campaign.name,
+          description: campaign.description,
+          startDate: campaign.startDate,
+          endDate: campaign.endDate,
+          employeeAccess: campaign.employeeAccess,
+          selectedEmployees: campaign.selectedEmployees,
+        }),
       })
       if (!response.ok) {
         const error = await response.json()
@@ -139,7 +195,7 @@ export default function CampaignsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
       setIsCreateDialogOpen(false)
-      setNewCampaign({ name: '', description: '', startDate: null, endDate: null })
+      setNewCampaign({ name: '', description: '', startDate: null, endDate: null, employeeAccess: 'NONE', selectedEmployees: [] })
       toast.success('Campaign Created', {
         description: 'Your new campaign has been created successfully.'
       })
@@ -153,7 +209,7 @@ export default function CampaignsPage() {
 
   // Edit campaign mutation
   const editCampaignMutation = useMutation({
-    mutationFn: async (campaign: EditCampaignData) => {
+    mutationFn: async (campaign: typeof editCampaign) => {
       const response = await fetch(`/api/campaigns/${campaign.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -162,6 +218,8 @@ export default function CampaignsPage() {
           description: campaign.description,
           startDate: campaign.startDate,
           endDate: campaign.endDate,
+          employeeAccess: campaign.employeeAccess,
+          selectedEmployees: campaign.selectedEmployees,
         }),
       })
       if (!response.ok) {
@@ -173,7 +231,7 @@ export default function CampaignsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
       setIsEditDialogOpen(false)
-      setEditCampaign({ id: '', name: '', description: '', startDate: null, endDate: null })
+      setEditCampaign({ id: '', name: '', description: '', startDate: null, endDate: null, employeeAccess: 'NONE', selectedEmployees: [] })
       toast.success('Campaign Updated', {
         description: 'Your campaign has been updated successfully.'
       })
@@ -296,6 +354,8 @@ export default function CampaignsPage() {
       description: campaign.description || '',
       startDate: campaign.startDate,
       endDate: campaign.endDate,
+      employeeAccess: campaign.employees?.length ? (campaign.employees.length === employees?.length ? 'ALL' : 'SELECTED') : 'NONE',
+      selectedEmployees: campaign.employees?.map(e => e.employeeId) || [],
     })
     setIsEditDialogOpen(true)
   }
@@ -370,6 +430,55 @@ export default function CampaignsPage() {
                     }
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label>Employee Access</Label>
+                  <Select
+                    value={newCampaign.employeeAccess}
+                    onValueChange={(value: 'NONE' | 'ALL' | 'SELECTED') =>
+                      setNewCampaign({ ...newCampaign, employeeAccess: value, selectedEmployees: value === 'SELECTED' ? newCampaign.selectedEmployees : [] })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select access type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Access Type</SelectLabel>
+                        <SelectItem value="NONE">No Access</SelectItem>
+                        <SelectItem value="ALL">All Employees</SelectItem>
+                        <SelectItem value="SELECTED">Selected Employees</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {newCampaign.employeeAccess === 'SELECTED' && employees && (
+                  <div className="space-y-2">
+                    <Label>Select Employees</Label>
+                    <div className="space-y-2">
+                      {employees.map((employee) => (
+                        <div key={employee.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`employee-${employee.id}`}
+                            checked={newCampaign.selectedEmployees.includes(employee.id)}
+                            onCheckedChange={(checked) => {
+                              setNewCampaign({
+                                ...newCampaign,
+                                selectedEmployees: checked
+                                  ? [...newCampaign.selectedEmployees, employee.id]
+                                  : newCampaign.selectedEmployees.filter(id => id !== employee.id)
+                              })
+                            }}
+                          />
+                          <Label htmlFor={`employee-${employee.id}`} className="text-sm">
+                            {employee.user.name} ({employee.user.email})
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="start-date">Start Date</Label>
@@ -460,6 +569,55 @@ export default function CampaignsPage() {
                 }
               />
             </div>
+            <div className="space-y-2">
+              <Label>Employee Access</Label>
+              <Select
+                value={editCampaign.employeeAccess}
+                onValueChange={(value: 'NONE' | 'ALL' | 'SELECTED') =>
+                  setEditCampaign({ ...editCampaign, employeeAccess: value, selectedEmployees: value === 'SELECTED' ? editCampaign.selectedEmployees : [] })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select access type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Access Type</SelectLabel>
+                    <SelectItem value="NONE">No Access</SelectItem>
+                    <SelectItem value="ALL">All Employees</SelectItem>
+                    <SelectItem value="SELECTED">Selected Employees</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {editCampaign.employeeAccess === 'SELECTED' && employees && (
+              <div className="space-y-2">
+                <Label>Select Employees</Label>
+                <div className="space-y-2">
+                  {employees.map((employee) => (
+                    <div key={employee.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`edit-employee-${employee.id}`}
+                        checked={editCampaign.selectedEmployees.includes(employee.id)}
+                        onCheckedChange={(checked) => {
+                          setEditCampaign({
+                            ...editCampaign,
+                            selectedEmployees: checked
+                              ? [...editCampaign.selectedEmployees, employee.id]
+                              : editCampaign.selectedEmployees.filter(id => id !== employee.id)
+                          })
+                        }}
+                      />
+                      <Label htmlFor={`edit-employee-${employee.id}`} className="text-sm">
+                        {employee.user.name} ({employee.user.email})
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-start-date">Start Date</Label>

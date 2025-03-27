@@ -13,6 +13,8 @@ const createCampaignSchema = z.object({
   endDate: z.string().datetime().optional(),
   status: z.nativeEnum(CampaignStatus).optional(),
   settings: z.record(z.any()).optional(),
+  employeeAccess: z.enum(['NONE', 'ALL', 'SELECTED']),
+  selectedEmployees: z.array(z.string()),
 })
 
 export async function GET() {
@@ -41,6 +43,11 @@ export async function GET() {
             select: {
               id: true,
               status: true,
+            },
+          },
+          employees: {
+            select: {
+              employeeId: true,
             },
           },
         },
@@ -94,6 +101,11 @@ export async function GET() {
               status: true,
             },
           },
+          employees: {
+            select: {
+              employeeId: true,
+            },
+          },
         },
         orderBy: {
           createdAt: 'desc',
@@ -129,6 +141,34 @@ export async function POST(request: Request) {
     const json = await request.json()
     const body = createCampaignSchema.parse(json)
 
+    // Get all employees if employeeAccess is ALL
+    let employeeIds: string[] = []
+    if (body.employeeAccess === 'ALL') {
+      const employees = await prisma.employee.findMany({
+        where: {
+          adminId: session.user.id,
+        },
+        select: {
+          id: true,
+        },
+      })
+      employeeIds = employees.map(e => e.id)
+    } else if (body.employeeAccess === 'SELECTED') {
+      // Verify all selected employees belong to the admin
+      const employees = await prisma.employee.findMany({
+        where: {
+          id: {
+            in: body.selectedEmployees,
+          },
+          adminId: session.user.id,
+        },
+        select: {
+          id: true,
+        },
+      })
+      employeeIds = employees.map(e => e.id)
+    }
+
     const campaign = await prisma.campaign.create({
       data: {
         name: body.name,
@@ -138,6 +178,12 @@ export async function POST(request: Request) {
         status: body.status || CampaignStatus.ACTIVE,
         settings: body.settings || {},
         adminId: session.user.id,
+        employees: {
+          create: employeeIds.map(employeeId => ({
+            employeeId,
+            permissions: {},
+          })),
+        },
       },
       include: {
         admin: {
@@ -145,6 +191,11 @@ export async function POST(request: Request) {
             id: true,
             name: true,
             email: true,
+          },
+        },
+        employees: {
+          select: {
+            employeeId: true,
           },
         },
       },

@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
-import { CampaignStatus } from '@prisma/client'
+import { CampaignStatus, UserRole } from '@prisma/client'
 
 // Campaign update schema
 const updateCampaignSchema = z.object({
@@ -13,6 +13,8 @@ const updateCampaignSchema = z.object({
   endDate: z.string().datetime().optional(),
   status: z.nativeEnum(CampaignStatus).optional(),
   settings: z.record(z.any()).optional(),
+  employeeAccess: z.enum(['NONE', 'ALL', 'SELECTED']),
+  selectedEmployees: z.array(z.string()),
 })
 
 type RouteContext = {
@@ -28,38 +30,130 @@ export async function GET(request: Request, context: RouteContext) {
 
     const { id } = await context.params
 
-    const campaign = await prisma.campaign.findFirst({
-      where: {
-        id,
-        adminId: session.user.id,
-      },
-      include: {
-        admin: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+    // Different queries for admin and employee
+    if (session.user.role === UserRole.ADMIN) {
+      // Admin access - check if campaign belongs to them
+      const campaign = await prisma.campaign.findFirst({
+        where: {
+          id,
+          adminId: session.user.id,
+        },
+        include: {
+          admin: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          contacts: {
+            select: {
+              id: true,
+              status: true,
+              lastCalled: true,
+              callAttempts: true,
+            },
+          },
+          employees: {
+            select: {
+              employeeId: true,
+              employee: {
+                select: {
+                  user: {
+                    select: {
+                      name: true,
+                      email: true,
+                    }
+                  }
+                }
+              }
+            },
           },
         },
-        contacts: {
-          select: {
-            id: true,
-            status: true,
-            lastCalled: true,
-            callAttempts: true,
-          },
-        },
-      },
-    })
+      })
 
-    if (!campaign) {
-      return NextResponse.json(
-        { error: 'Campaign not found or unauthorized' },
-        { status: 404 }
-      )
+      if (!campaign) {
+        return NextResponse.json(
+          { error: 'Campaign not found or unauthorized' },
+          { status: 404 }
+        )
+      }
+
+      return NextResponse.json(campaign)
+    } else {
+      // Employee access - check if they have access to this campaign
+      const employee = await prisma.employee.findFirst({
+        where: {
+          user: {
+            id: session.user.id,
+          },
+        },
+        select: {
+          id: true,
+          permissions: true,
+        },
+      })
+
+      if (!employee || !(employee.permissions as any).campaigns.view) {
+        return NextResponse.json(
+          { error: 'No permission to view campaigns' },
+          { status: 403 }
+        )
+      }
+
+      // Check if employee has access to this specific campaign
+      const campaign = await prisma.campaign.findFirst({
+        where: {
+          id,
+          employees: {
+            some: {
+              employeeId: employee.id
+            }
+          }
+        },
+        include: {
+          admin: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          contacts: {
+            select: {
+              id: true,
+              status: true,
+              lastCalled: true,
+              callAttempts: true,
+            },
+          },
+          employees: {
+            select: {
+              employeeId: true,
+              employee: {
+                select: {
+                  user: {
+                    select: {
+                      name: true,
+                      email: true,
+                    }
+                  }
+                }
+              }
+            },
+          },
+        },
+      })
+
+      if (!campaign) {
+        return NextResponse.json(
+          { error: 'Campaign not found or unauthorized' },
+          { status: 404 }
+        )
+      }
+
+      return NextResponse.json(campaign)
     }
-
-    return NextResponse.json(campaign)
   } catch (error) {
     console.error('Error fetching campaign:', error)
     return NextResponse.json(
@@ -86,6 +180,9 @@ export async function PUT(request: Request, context: RouteContext) {
         id,
         adminId: session.user.id,
       },
+      include: {
+        employees: true,
+      },
     })
 
     if (!existingCampaign) {
@@ -95,17 +192,65 @@ export async function PUT(request: Request, context: RouteContext) {
       )
     }
 
+    // Get all employees if employeeAccess is ALL
+    let employeeIds: string[] = []
+    if (validatedData.employeeAccess === 'ALL') {
+      const employees = await prisma.employee.findMany({
+        where: {
+          adminId: session.user.id,
+        },
+        select: {
+          id: true,
+        },
+      })
+      employeeIds = employees.map(e => e.id)
+    } else if (validatedData.employeeAccess === 'SELECTED') {
+      // Verify all selected employees belong to the admin
+      const employees = await prisma.employee.findMany({
+        where: {
+          id: {
+            in: validatedData.selectedEmployees,
+          },
+          adminId: session.user.id,
+        },
+        select: {
+          id: true,
+        },
+      })
+      employeeIds = employees.map(e => e.id)
+    }
+
+    // Update campaign with new employee assignments
     const campaign = await prisma.campaign.update({
       where: {
         id,
       },
-      data: validatedData,
+      data: {
+        name: validatedData.name,
+        description: validatedData.description,
+        startDate: validatedData.startDate ? new Date(validatedData.startDate) : undefined,
+        endDate: validatedData.endDate ? new Date(validatedData.endDate) : undefined,
+        status: validatedData.status,
+        settings: validatedData.settings,
+        employees: {
+          deleteMany: {}, // Remove all existing employee assignments
+          create: employeeIds.map(employeeId => ({
+            employeeId,
+            permissions: {},
+          })),
+        },
+      },
       include: {
         admin: {
           select: {
             id: true,
             name: true,
             email: true,
+          },
+        },
+        employees: {
+          select: {
+            employeeId: true,
           },
         },
       },

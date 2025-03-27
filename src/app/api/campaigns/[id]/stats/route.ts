@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { subDays, startOfDay, endOfDay } from 'date-fns'
-import { Campaign, Contact, CallLog, CampaignContact, Appointment, AppointmentStatus, ContactStatus } from '@prisma/client'
+import { Campaign, Contact, CallLog, CampaignContact, Appointment, AppointmentStatus, ContactStatus, UserRole } from '@prisma/client'
 
 interface CampaignWithRelations extends Campaign {
   contacts: CampaignContact[]
@@ -22,26 +22,75 @@ export async function GET(request: Request, context: RouteParams) {
 
     const { id } = await context.params
 
-    // Get campaign and verify ownership
-    const campaign = await prisma.campaign.findFirst({
-      where: {
-        id,
-        adminId: session.user.id,
-      },
-      include: {
-        contacts: true,
-        callLogs: {
-          include: {
-            contact: true,
+    let campaign: CampaignWithRelations | null = null
+
+    if (session.user.role === UserRole.ADMIN) {
+      // Admin access - check if campaign belongs to them
+      campaign = await prisma.campaign.findFirst({
+        where: {
+          id,
+          adminId: session.user.id,
+        },
+        include: {
+          contacts: true,
+          callLogs: {
+            include: {
+              contact: true,
+            },
+          },
+          appointments: {
+            include: {
+              contact: true,
+            },
           },
         },
-        appointments: {
-          include: {
-            contact: true,
+      }) as CampaignWithRelations | null
+    } else {
+      // Employee access - check if they have access to this campaign
+      const employee = await prisma.employee.findFirst({
+        where: {
+          user: {
+            id: session.user.id,
           },
         },
-      },
-    }) as CampaignWithRelations | null
+        select: {
+          id: true,
+          permissions: true,
+        },
+      })
+
+      if (!employee || !(employee.permissions as any).campaigns.view) {
+        return NextResponse.json(
+          { error: 'No permission to view campaigns' },
+          { status: 403 }
+        )
+      }
+
+      // Check if employee has access to this specific campaign
+      campaign = await prisma.campaign.findFirst({
+        where: {
+          id,
+          employees: {
+            some: {
+              employeeId: employee.id
+            }
+          }
+        },
+        include: {
+          contacts: true,
+          callLogs: {
+            include: {
+              contact: true,
+            },
+          },
+          appointments: {
+            include: {
+              contact: true,
+            },
+          },
+        },
+      }) as CampaignWithRelations | null
+    }
 
     if (!campaign) {
       return NextResponse.json(
