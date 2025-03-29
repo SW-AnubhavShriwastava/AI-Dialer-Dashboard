@@ -344,54 +344,45 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
     },
   })
 
-  // Add call mutation
-  const callMutation = useMutation({
-    mutationFn: async (contact: Contact) => {
-      console.log('Initiating call to:', contact.phone)
+  // Add call initiation mutation
+  const initiateCallMutation = useMutation({
+    mutationFn: async (contactId: string) => {
+      setIsCalling(contactId)
       try {
-        const response = await fetch('/api/calls/start_call', {
+        const contact = contacts?.find(c => c.id === contactId)
+        if (!contact) throw new Error('Contact not found')
+
+        const response = await fetch('/api/calls/start', {
           method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             to_number: contact.phone,
+            campaignId,
+            contactId,
           }),
         })
         
-        console.log('Response status:', response.status)
-        const responseText = await response.text()
-        console.log('Response text:', responseText)
-        
         if (!response.ok) {
-          throw new Error(responseText || 'Failed to initiate call')
+          const error = await response.text()
+          throw new Error(error)
         }
         
-        try {
-          return JSON.parse(responseText)
-        } catch (e) {
-          console.error('Failed to parse response:', responseText)
-          throw new Error('Invalid response from server')
-        }
-      } catch (error) {
-        console.error('Call error:', error)
-        throw error
+        return response.json()
+      } finally {
+        setIsCalling(null)
       }
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['campaign-contacts', campaignId] })
-      setIsCalling(null)
+    onSuccess: () => {
       toast({
         title: 'Success',
-        description: `Call initiated successfully. Call SID: ${data.call_sid}`,
+        description: 'Call initiated successfully',
       })
+      queryClient.invalidateQueries({ queryKey: ['campaign-contacts', campaignId] })
     },
-    onError: (error: Error) => {
-      setIsCalling(null)
-      console.error('Call error:', error)
+    onError: (error) => {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to initiate call',
+        description: error instanceof Error ? error.message : 'Failed to initiate call',
         variant: 'destructive',
       })
     },
@@ -481,25 +472,17 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
                 <TableHead>Status</TableHead>
                 <TableHead>Last Called</TableHead>
                 <TableHead>Call Attempts</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {contacts?.map((contact) => (
                 <TableRow key={contact.id}>
-                  <TableCell className="font-medium">{contact.name}</TableCell>
+                  <TableCell>{contact.name}</TableCell>
                   <TableCell>{contact.phone}</TableCell>
-                  <TableCell>{contact.email || '-'}</TableCell>
+                  <TableCell>{contact.email}</TableCell>
                   <TableCell>
-                    <Badge
-                      variant={
-                        contact.status === ContactStatus.ACTIVE
-                          ? 'default'
-                          : contact.status === ContactStatus.INACTIVE
-                          ? 'secondary'
-                          : 'destructive'
-                      }
-                    >
+                    <Badge variant={contact.status === 'ACTIVE' ? 'default' : 'secondary'}>
                       {contact.status}
                     </Badge>
                   </TableCell>
@@ -514,10 +497,7 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => {
-                          setIsCalling(contact.id)
-                          callMutation.mutate(contact)
-                        }}
+                        onClick={() => initiateCallMutation.mutate(contact.id)}
                         disabled={isCalling === contact.id}
                       >
                         {isCalling === contact.id ? (
@@ -528,8 +508,7 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
+                          <Button variant="ghost" size="icon">
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -537,11 +516,10 @@ export function CampaignContacts({ campaignId }: CampaignContactsProps) {
                           <DropdownMenuItem
                             onClick={() => {
                               setNewContact({
-                                id: contact.id,
                                 name: contact.name,
                                 phone: contact.phone,
                                 email: contact.email || '',
-                              } as any)
+                              })
                               setIsAddContactDialogOpen(true)
                             }}
                           >

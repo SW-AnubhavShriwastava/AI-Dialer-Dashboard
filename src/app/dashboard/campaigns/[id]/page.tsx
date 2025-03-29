@@ -37,7 +37,7 @@ import { Loader2 } from 'lucide-react'
 import { CampaignDashboard } from './components/campaign-dashboard'
 import { CampaignContacts } from './components/campaign-contacts'
 import { CampaignCallLogs } from './components/campaign-call-logs'
-import { CampaignLeads } from './components/campaign-leads'
+import { CampaignSettings } from './components/campaign-settings'
 import { CampaignCalendar } from './components/campaign-calendar'
 
 interface Contact {
@@ -61,6 +61,10 @@ interface Campaign {
   endDate: string | null
   createdAt: string
   contacts: Contact[]
+}
+
+interface CampaignSettingsProps {
+  campaignId: string;
 }
 
 export default function CampaignDetailsPage() {
@@ -208,7 +212,7 @@ export default function CampaignDetailsPage() {
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="contacts">Contacts</TabsTrigger>
           <TabsTrigger value="call-logs">Call Logs</TabsTrigger>
-          <TabsTrigger value="leads">Leads & Appointments</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
           <TabsTrigger value="calendar">Calendar</TabsTrigger>
         </TabsList>
 
@@ -224,8 +228,8 @@ export default function CampaignDetailsPage() {
           <CampaignCallLogs />
         </TabsContent>
 
-        <TabsContent value="leads" className="space-y-4">
-          <CampaignLeads campaignId={campaignId} />
+        <TabsContent value="settings" className="space-y-4">
+          <CampaignSettings campaignId={campaignId} />
         </TabsContent>
 
         <TabsContent value="calendar" className="space-y-4">
