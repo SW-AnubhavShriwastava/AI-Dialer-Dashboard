@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { generateOTP, storeOTP, verifyOTP } from '@/lib/verification'
-import { sendVerificationEmail } from '@/lib/mail'
+import { emailQueue } from '@/lib/email-queue'
 import { storePendingUser, getPendingUser, removePendingUser } from '@/lib/temp-user'
 import { createUser } from '@/lib/auth'
 import { db } from '@/lib/db'
@@ -49,10 +49,18 @@ export async function POST(req: Request) {
     // Store user data temporarily
     storePendingUser({ name, email, username, password })
 
-    // Send verification email
-    await sendVerificationEmail({ to: email, otp })
+    // Add email to queue instead of sending directly
+    await emailQueue.addToQueue({
+      to: email,
+      otp,
+      type: 'verification',
+      retries: 0
+    })
 
-    return NextResponse.json({ message: 'Verification code sent' })
+    return NextResponse.json({ 
+      message: 'Verification code sent',
+      queueLength: emailQueue.getQueueLength()
+    })
   } catch (error) {
     console.error('Signup error:', error)
     return NextResponse.json(

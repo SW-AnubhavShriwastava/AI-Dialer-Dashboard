@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer'
 
+// Create a connection pool
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT),
@@ -8,6 +9,20 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER || process.env.EMAIL_USER,
     pass: process.env.SMTP_PASSWORD || process.env.EMAIL_PASS,
   },
+  pool: true, // Use pooled connections
+  maxConnections: 5, // Maximum number of connections to create
+  maxMessages: 100, // Maximum number of messages per connection
+  rateDelta: 1000, // Time window for rate limiting (1 second)
+  rateLimit: 5, // Maximum number of messages per time window
+})
+
+// Verify connection configuration
+transporter.verify((error) => {
+  if (error) {
+    console.error('SMTP connection error:', error)
+  } else {
+    console.log('SMTP server is ready to send emails')
+  }
 })
 
 export async function sendVerificationEmail({
@@ -30,7 +45,6 @@ export async function sendVerificationEmail({
         </div>
         <p style="color: #6B7280; font-size: 14px;">This code will expire in 10 minutes.</p>
         <p style="color: #6B7280; font-size: 14px;">If you didn't request this code, you can safely ignore this email.</p>
-        <p style="color: #6B7280; font-size: 14px;">For testing, you can also use the master OTP: 992400</p>
       </div>
     `,
   }
@@ -41,6 +55,6 @@ export async function sendVerificationEmail({
     return { success: true }
   } catch (error) {
     console.error('Failed to send verification email:', error)
-    return { success: false, error }
+    throw error // Let the queue handle retries
   }
 } 

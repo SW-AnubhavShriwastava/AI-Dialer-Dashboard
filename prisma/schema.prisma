@@ -15,6 +15,9 @@ datasource db {
   schemas   = ["dashboard"]
 }
 
+// Import shared schema
+import "../shared/schema/schema.prisma"
+
 // User Management
 model User {
   id            String    @id @default(cuid())
