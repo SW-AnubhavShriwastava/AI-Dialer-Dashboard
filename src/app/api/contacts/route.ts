@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { z } from 'zod'
-import { UserRole } from '@prisma/client'
+import { UserRole, Prisma } from '@prisma/client'
 
 // Contact creation schema
 const createContactSchema = z.object({
@@ -40,12 +40,22 @@ function checkPermissions(session: any, operation: 'view' | 'create' | 'edit' | 
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions)
-    checkPermissions(session, 'view')
-
     if (!session?.user) {
-      throw new Error('Unauthorized')
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Check permissions
+    const hasPermission = session.user.role === UserRole.ADMIN || 
+      session.user.employeeProfile?.permissions?.contacts?.view === true
+
+    if (!hasPermission) {
+      return NextResponse.json(
+        { error: 'No permission to view contacts' },
+        { status: 403 }
+      )
+    }
+
+    // Get query parameters
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search')
     const tags = searchParams.get('tags')?.split(',')
@@ -53,14 +63,33 @@ export async function GET(request: Request) {
     const limit = 10
 
     // Build where clause
-    const where: any = {}
-    
-    // Add search condition
+    let where: Prisma.ContactWhereInput = {}
+
+    // Add access control
+    if (session.user.role === UserRole.ADMIN) {
+      where.adminId = session.user.id
+    } else if (session.user.employeeProfile?.permissions?.contacts?.accessType === 'ALL') {
+      where.adminId = session.user.employeeProfile.adminId
+    } else {
+      where.campaigns = {
+        some: {
+          campaign: {
+            employees: {
+              some: {
+                employeeId: session.user.employeeProfile?.id
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Add search conditions
     if (search) {
       where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-        { phone: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search, mode: Prisma.QueryMode.insensitive } },
+        { phone: { contains: search } },
+        { email: { contains: search, mode: Prisma.QueryMode.insensitive } },
       ]
     }
 
@@ -69,32 +98,9 @@ export async function GET(request: Request) {
       where.tags = { hasEvery: tags }
     }
 
-    // Add access condition based on role and permissions
-    if (session.user.role === UserRole.ADMIN) {
-      where.adminId = session.user.id
-    } else if (session.user.role === UserRole.EMPLOYEE && session.user.employeeProfile) {
-      const accessType = session.user.employeeProfile.permissions?.contacts?.accessType
-      if (accessType === 'ALL') {
-        // Get admin ID from employee profile
-        where.adminId = session.user.employeeProfile.adminId
-      } else {
-        // Only show contacts from campaigns the employee is part of
-        where.campaigns = {
-          some: {
-            campaign: {
-              employees: {
-                some: {
-                  employeeId: session.user.employeeProfile.id
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-
     // Get total count
     const total = await db.contact.count({ where })
+    const totalPages = Math.ceil(total / limit)
 
     // Get contacts
     const contacts = await db.contact.findMany({
@@ -110,14 +116,14 @@ export async function GET(request: Request) {
         total,
         page,
         limit,
-        totalPages: Math.ceil(total / limit),
+        totalPages,
       },
     })
   } catch (error) {
     console.error('Error fetching contacts:', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch contacts' },
-      { status: error instanceof Error && error.message === 'Unauthorized' ? 401 : 500 }
+      { error: 'Failed to fetch contacts' },
+      { status: 500 }
     )
   }
 }

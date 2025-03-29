@@ -368,9 +368,12 @@ export default function CampaignsPage() {
     )
   }
 
-  // Show no access component if permission error
-  if (error instanceof Error && error.message === 'No permission to view campaigns') {
-    return <NoAccess />
+  // Check permissions and return NoAccess if needed
+  if (user?.role !== UserRole.ADMIN && !user?.employeeProfile?.permissions?.campaigns?.view) {
+    return <NoAccess 
+      title="No Access to Campaigns"
+      message="You don't have permission to view campaigns. Please contact your administrator if you believe this is a mistake."
+    />
   }
 
   // Show error state for other errors

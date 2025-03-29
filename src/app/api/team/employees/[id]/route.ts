@@ -6,10 +6,11 @@ import { UserRole } from '@prisma/client'
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
     const session = await getServerSession(authOptions)
+    const { id } = context.params
 
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -21,7 +22,7 @@ export async function DELETE(
 
     // First find the employee to get the user ID
     const employee = await db.employee.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { user: true }
     })
 
@@ -36,7 +37,7 @@ export async function DELETE(
 
     // Delete in the correct order to maintain referential integrity
     await db.employee.delete({
-      where: { id: params.id }
+      where: { id }
     })
 
     // Then delete the user
@@ -56,10 +57,11 @@ export async function DELETE(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
     const session = await getServerSession(authOptions)
+    const { id } = context.params
 
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -73,7 +75,7 @@ export async function PATCH(
 
     // First find the employee to verify ownership
     const employee = await db.employee.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { user: true }
     })
 
@@ -96,7 +98,7 @@ export async function PATCH(
     })
 
     const updatedEmployee = await db.employee.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         permissions: body.permissions,
       },

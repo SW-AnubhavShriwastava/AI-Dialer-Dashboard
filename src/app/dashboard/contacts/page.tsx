@@ -44,6 +44,7 @@ import {
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { usePermissions } from '@/hooks/use-permissions'
+import { NoAccess } from '../campaigns/components/no-access'
 
 interface Contact {
   id: string
@@ -113,6 +114,14 @@ export default function ContactsPage() {
   const queryClient = useQueryClient()
   const [importProgress, setImportProgress] = useState(0)
 
+  // Check if user has contact view permission
+  if (!permissions.contacts.view) {
+    return <NoAccess 
+      title="No Access to Contacts" 
+      message="You don't have permission to view contacts. Please contact your administrator if you believe this is a mistake." 
+    />
+  }
+
   // Form hooks
   const addForm = useForm<ContactFormValues>({
     resolver: zodResolver(contactFormSchema),
@@ -157,10 +166,16 @@ export default function ContactsPage() {
       const response = await fetch(`/api/contacts?${params.toString()}`)
       if (!response.ok) {
         const error = await response.json()
+        if (response.status === 403) {
+          throw new Error('No permission to view contacts')
+        }
         throw new Error(error.error || 'Failed to fetch contacts')
       }
       return response.json()
     },
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
   })
 
   // Add contact mutation
