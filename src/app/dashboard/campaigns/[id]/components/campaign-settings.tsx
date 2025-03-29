@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useToast } from '@/components/ui/use-toast'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -27,7 +27,6 @@ interface CampaignSettings {
 }
 
 export function CampaignSettings({ campaignId }: { campaignId: string }) {
-  const { toast } = useToast()
   const queryClient = useQueryClient()
 
   // Fetch campaign settings
@@ -63,16 +62,13 @@ export function CampaignSettings({ campaignId }: { campaignId: string }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaign-settings', campaignId] })
-      toast({
-        title: 'Success',
-        description: 'Campaign settings updated successfully',
+      toast.success('Settings Updated', {
+        description: 'Campaign settings have been updated successfully.'
       })
     },
-    onError: () => {
-      toast({
-        title: 'Error',
-        description: 'Failed to update campaign settings',
-        variant: 'destructive',
+    onError: (error) => {
+      toast.error('Update Failed', {
+        description: error instanceof Error ? error.message : 'Failed to update campaign settings'
       })
     },
   })
@@ -109,20 +105,6 @@ export function CampaignSettings({ campaignId }: { campaignId: string }) {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="systemMessage">System Message (AI Prompt)</Label>
-              <Textarea
-                id="systemMessage"
-                name="systemMessage"
-                placeholder={DEFAULT_SYSTEM_MESSAGE}
-                defaultValue={currentSettings.systemMessage || DEFAULT_SYSTEM_MESSAGE}
-                className="min-h-[150px] font-mono text-sm"
-              />
-              <p className="text-sm text-muted-foreground">
-                This is the prompt that guides the AI's behavior and responses during calls.
-              </p>
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="initialMessage">Initial Message</Label>
               <Textarea
                 id="initialMessage"
@@ -133,6 +115,20 @@ export function CampaignSettings({ campaignId }: { campaignId: string }) {
               />
               <p className="text-sm text-muted-foreground">
                 This is the first message the AI will say when the call connects.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="systemMessage">System Message (AI Prompt)</Label>
+              <Textarea
+                id="systemMessage"
+                name="systemMessage"
+                placeholder={DEFAULT_SYSTEM_MESSAGE}
+                defaultValue={currentSettings.systemMessage || DEFAULT_SYSTEM_MESSAGE}
+                className="min-h-[150px] font-mono text-sm"
+              />
+              <p className="text-sm text-muted-foreground">
+                This is the prompt that guides the AI's behavior and responses during calls.
               </p>
             </div>
 
