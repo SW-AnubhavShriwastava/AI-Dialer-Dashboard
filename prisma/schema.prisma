@@ -6,17 +6,45 @@
 
 generator client {
   provider = "prisma-client-js"
-  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas   = ["dashboard"]
 }
 
-// Import shared schema
-import "../shared/schema/schema.prisma"
+// Shared Enums
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  EMPLOYEE
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+}
+
+enum CampaignStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  DRAFT
+}
+
+enum ContactStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
 
 // User Management
 model User {
@@ -39,7 +67,6 @@ model User {
   campaigns     Campaign[]
   contacts      Contact[]
 
-  @@schema("dashboard")
   @@map("users")
 }
 
@@ -54,7 +81,6 @@ model AdminSettings {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  @@schema("dashboard")
   @@map("admin_settings")
 }
 
@@ -71,7 +97,6 @@ model Employee {
   user        User      @relation("EmployeeProfile", fields: [userId], references: [id], onDelete: Cascade)
   campaigns   CampaignEmployee[]
 
-  @@schema("dashboard")
   @@map("employees")
 }
 
@@ -97,7 +122,6 @@ model Campaign {
   callLogs    CallLog[]
   appointments Appointment[]
 
-  @@schema("dashboard")
   @@map("campaigns")
 }
 
@@ -112,7 +136,6 @@ model CampaignEmployee {
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
   @@unique([campaignId, employeeId])
-  @@schema("dashboard")
   @@map("campaign_employees")
 }
 
@@ -134,7 +157,6 @@ model Contact {
   callLogs    CallLog[]
   appointments Appointment[]
 
-  @@schema("dashboard")
   @@map("contacts")
 }
 
@@ -151,7 +173,6 @@ model CampaignContact {
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
   @@unique([campaignId, contactId])
-  @@schema("dashboard")
   @@map("campaign_contacts")
 }
 
@@ -173,8 +194,8 @@ model CallLog {
 
   // Relations
   appointment Appointment?
+  transcript  Transcript? @relation(fields: [transcriptId], references: [id])
 
-  @@schema("dashboard")
   @@map("call_logs")
 }
 
@@ -193,48 +214,32 @@ model Appointment {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  @@schema("dashboard")
   @@map("appointments")
 }
 
-enum UserRole {
-  SUPER_ADMIN
-  ADMIN
-  EMPLOYEE
+// Dialer Models
+model ScheduledCall {
+  id                String    @id @default(cuid())
+  phone             String
+  time              String
+  date              String
+  timestamp         Float
+  callSid           String    @unique @map("call_sid")
+  scheduledDatetime DateTime  @map("scheduled_datetime")
+  createdAt         DateTime  @default(now()) @map("created_at")
 
-  @@schema("dashboard")
+  @@map("scheduled_calls")
 }
 
-enum UserStatus {
-  ACTIVE
-  INACTIVE
-  PENDING
+model Transcript {
+  id          String    @id @default(cuid())
+  callSid     String    @unique @map("call_sid")
+  phoneNumber String    @map("phone_number")
+  transcript  Json
+  lastUpdated DateTime  @default(now()) @map("last_updated")
 
-  @@schema("dashboard")
-}
+  // Relations
+  callLogs    CallLog[]
 
-enum CampaignStatus {
-  ACTIVE
-  PAUSED
-  COMPLETED
-  DRAFT
-
-  @@schema("dashboard")
-}
-
-enum ContactStatus {
-  ACTIVE
-  INACTIVE
-  BLOCKED
-
-  @@schema("dashboard")
-}
-
-enum AppointmentStatus {
-  SCHEDULED
-  COMPLETED
-  CANCELLED
-  NO_SHOW
-
-  @@schema("dashboard")
+  @@map("transcripts")
 }
