@@ -1,4 +1,4 @@
-# Database Setup Guide for AI Dialer Project
+# Database Setup Guide for SNB Connect Project
 
 This guide provides detailed instructions for setting up the database for both the AI-Dialer-Dashboard (Next.js) and AI-Dialer_old (Python) applications.
 

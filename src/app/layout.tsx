@@ -5,7 +5,7 @@ import Providers from './providers'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'AI Dialer Dashboard',
+  title: 'SNB Connect Dashboard',
   description: 'Manage your AI dialing campaigns',
 }
 

@@ -77,7 +77,7 @@ export function Sidebar() {
         <div className="h-full">
           <nav className="space-y-1 px-3">
             <div className="mb-8 px-3">
-              <h2 className="text-xl font-bold">AI Dialer</h2>
+              <h2 className="text-xl font-bold">SNB Connect</h2>
             </div>
             {visibleItems.map((item) => {
               const isActive = pathname === item.href

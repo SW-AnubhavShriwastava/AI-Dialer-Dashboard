@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     const aiDialerUrl = process.env.AI_DIALER_URL
     if (!aiDialerUrl) {
       return NextResponse.json(
-        { error: 'AI Dialer URL is not configured' },
+        { error: 'SNB Connect URL is not configured' },
         { status: 500 }
       )
     }

@@ -1,10 +1,10 @@
-# AI Dialer Dashboard
+# SNB Connect Dashboard
 
 A comprehensive dashboard for managing AI-powered phone call campaigns, built with Next.js 14, TypeScript, and Prisma.
 
 ## Overview
 
-AI Dialer Dashboard is a modern web application that allows users to manage and monitor AI-powered phone call campaigns. It provides a user-friendly interface for administrators to create campaigns, manage contacts, track call logs, and schedule appointments.
+SNB Connect Dashboard is a modern web application that allows users to manage and monitor AI-powered phone call campaigns. It provides a user-friendly interface for administrators to create campaigns, manage contacts, track call logs, and schedule appointments.
 
 The dashboard works in conjunction with the [AI-Dialer](https://github.com/yourusername/AI-Dialer) Python application, which handles the actual phone calls using AI agents.
 

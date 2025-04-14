@@ -13,8 +13,9 @@ import {
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { format } from 'date-fns'
-import { FileText, Disc } from 'lucide-react'
+import { FileText, Disc, Phone } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { EmptyState } from '@/components/empty-state'
 
 interface CallLog {
   id: string
@@ -76,47 +77,55 @@ export function CampaignCallLogs() {
 
   return (
     <div className="space-y-4">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Phone Number</TableHead>
-            <TableHead>Date & Time</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Duration</TableHead>
-            <TableHead>Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {callLogs.map((log) => (
-            <TableRow key={log.id}>
-              <TableCell>{log.phoneNumber}</TableCell>
-              <TableCell>
-                {format(new Date(log.timestamp), 'MMM d, yyyy h:mm a')}
-              </TableCell>
-              <TableCell>{log.status}</TableCell>
-              <TableCell>{log.duration}</TableCell>
-              <TableCell className="space-x-2">
-                {log.hasTranscript && (
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => fetchTranscript(log.callSid)}
-                  >
-                    <FileText className="h-4 w-4" />
-                  </Button>
-                )}
-                {log.hasRecording && (
-                  <Button variant="outline" size="icon">
-                    <Disc className="h-4 w-4" />
-                  </Button>
-                )}
-              </TableCell>
+      {callLogs.length === 0 ? (
+        <EmptyState
+          icon={Phone}
+          title="No Call Logs Yet"
+          description="Start making calls to see your call logs here."
+        />
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Phone Number</TableHead>
+              <TableHead>Date & Time</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Duration</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {callLogs.map((log) => (
+              <TableRow key={log.id}>
+                <TableCell>{log.phoneNumber}</TableCell>
+                <TableCell>
+                  {format(new Date(log.timestamp), 'MMM d, yyyy h:mm a')}
+                </TableCell>
+                <TableCell>{log.status}</TableCell>
+                <TableCell>{log.duration}</TableCell>
+                <TableCell className="space-x-2">
+                  {log.hasTranscript && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => fetchTranscript(log.callSid)}
+                    >
+                      <FileText className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {log.hasRecording && (
+                    <Button variant="outline" size="icon">
+                      <Disc className="h-4 w-4" />
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
 
-      <Dialog open={selectedCallSid !== null} onOpenChange={() => setSelectedCallSid(null)}>
+      <Dialog open={!!selectedCallSid} onOpenChange={() => setSelectedCallSid(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Call Transcript</DialogTitle>
