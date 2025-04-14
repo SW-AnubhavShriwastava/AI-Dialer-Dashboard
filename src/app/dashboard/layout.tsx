@@ -20,7 +20,14 @@ export default function DashboardLayout({
 
   // Get the current page title from the pathname
   const getPageTitle = () => {
-    const path = pathname.split('/').pop()
+    const pathParts = pathname.split('/')
+    const path = pathParts.pop()
+    
+    // If we're in a campaign details page
+    if (pathParts.includes('campaigns') && path && path.length > 20) {
+      return 'Campaign Details'
+    }
+    
     if (!path) return 'Dashboard'
     return path.charAt(0).toUpperCase() + path.slice(1)
   }
